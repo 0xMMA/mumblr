@@ -15,6 +15,11 @@
     <ProjectReference Include="../../src/Mumblr.Core/Mumblr.Core.csproj" />
   </ItemGroup>
 
+  <!-- A real Kestrel endpoint stands in for ElevenLabs so the wire protocol is covered. -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
   <ItemGroup>
     <Using Include="Xunit" />
     <Using Include="Shouldly" />

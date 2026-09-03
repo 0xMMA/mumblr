@@ -52,7 +52,6 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private MemoryStream? commandClip;
     private CommandLogItem? activeCommand;
     private bool capturingCommandClip;
-    private bool resumeRecordingAfterCommand;
     private int insertOffset;
     private bool suppressConfigSave = true;
 
@@ -387,8 +386,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
-        resumeRecordingAfterCommand = machine.State == SessionState.Recording;
-        if (resumeRecordingAfterCommand)
+        if (machine.State == SessionState.Recording)
         {
             // Channel 1 pauses: stop the mic, close the take so its text lands in the file.
             capture.Stop();
@@ -522,7 +520,6 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         if (machine.State == SessionState.Recording)
         {
             // Channel 1 resumes where the text now ends.
-            resumeRecordingAfterCommand = false;
             try
             {
                 insertOffset = editor.Text.Length;
