@@ -1,0 +1,83 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Styles.Resources>
+        <Color x:Key="Ink">#0E1116</Color>
+        <Color x:Key="Panel">#161B22</Color>
+        <Color x:Key="PanelRaised">#1C232C</Color>
+        <Color x:Key="Hairline">#2A323D</Color>
+        <Color x:Key="TextDim">#8A94A2</Color>
+        <Color x:Key="Live">#FF4D4D</Color>
+        <Color x:Key="Working">#F2B544</Color>
+        <Color x:Key="Good">#4CC38A</Color>
+
+        <SolidColorBrush x:Key="InkBrush" Color="{StaticResource Ink}" />
+        <SolidColorBrush x:Key="PanelBrush" Color="{StaticResource Panel}" />
+        <SolidColorBrush x:Key="PanelRaisedBrush" Color="{StaticResource PanelRaised}" />
+        <SolidColorBrush x:Key="HairlineBrush" Color="{StaticResource Hairline}" />
+        <SolidColorBrush x:Key="TextDimBrush" Color="{StaticResource TextDim}" />
+        <SolidColorBrush x:Key="LiveBrush" Color="{StaticResource Live}" />
+        <SolidColorBrush x:Key="WorkingBrush" Color="{StaticResource Working}" />
+        <SolidColorBrush x:Key="GoodBrush" Color="{StaticResource Good}" />
+    </Styles.Resources>
+
+    <Style Selector="Border.bar">
+        <Setter Property="Background" Value="{StaticResource PanelBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource HairlineBrush}" />
+        <Setter Property="Padding" Value="12,8" />
+    </Style>
+
+    <Style Selector="TextBlock.label">
+        <Setter Property="Foreground" Value="{StaticResource TextDimBrush}" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <Style Selector="TextBlock.mono">
+        <Setter Property="FontFamily" Value="Cascadia Mono,Consolas,DejaVu Sans Mono,monospace" />
+    </Style>
+
+    <Style Selector="Border.badge">
+        <Setter Property="CornerRadius" Value="10" />
+        <Setter Property="Padding" Value="10,3" />
+        <Setter Property="Background" Value="{StaticResource PanelRaisedBrush}" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <Style Selector="Border.badge.live">
+        <Setter Property="Background" Value="#3A1D22" />
+    </Style>
+
+    <Style Selector="Border.badge.working">
+        <Setter Property="Background" Value="#3A3220" />
+    </Style>
+
+    <Style Selector="Ellipse.dot">
+        <Setter Property="Width" Value="8" />
+        <Setter Property="Height" Value="8" />
+        <Setter Property="Fill" Value="{StaticResource TextDimBrush}" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <Style Selector="Ellipse.dot.live">
+        <Setter Property="Fill" Value="{StaticResource LiveBrush}" />
+    </Style>
+
+    <Style Selector="Ellipse.dot.working">
+        <Setter Property="Fill" Value="{StaticResource WorkingBrush}" />
+    </Style>
+
+    <Style Selector="Border.card">
+        <Setter Property="Background" Value="{StaticResource PanelRaisedBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource HairlineBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="6" />
+        <Setter Property="Padding" Value="10" />
+        <Setter Property="Margin" Value="0,0,0,8" />
+    </Style>
+
+    <Style Selector="Button.primary">
+        <Setter Property="MinWidth" Value="92" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+    </Style>
+</Styles>

@@ -31,8 +31,17 @@ public interface ISttEngine : IAsyncDisposable
     Task StopAsync(CancellationToken cancellationToken = default);
 }
 
+/// <summary>Transcribes one finished clip. Channel 2 always uses this, never a streaming session.</summary>
+public interface IClipTranscriber
+{
+    Task<string> TranscribeAsync(byte[] pcm16, SttSessionOptions options, CancellationToken cancellationToken = default);
+}
+
 /// <summary>Creates engines by mode so the UI can switch backends without knowing the implementations.</summary>
 public interface ISttEngineFactory
 {
     ISttEngine Create(SttMode mode);
+
+    /// <summary>The backend used for the channel 2 command clip.</summary>
+    IClipTranscriber CreateClipTranscriber();
 }

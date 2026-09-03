@@ -6,4 +6,10 @@
     <InvariantGlobalization>true</InvariantGlobalization>
     <Version>0.1.0</Version>
   </PropertyGroup>
+
+  <!-- Release builds ship without symbols; the portable package is large enough as it is. -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+  </PropertyGroup>
 </Project>

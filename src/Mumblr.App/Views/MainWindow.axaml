@@ -1,0 +1,157 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ae="using:AvaloniaEdit"
+        xmlns:vm="using:Mumblr.App.ViewModels"
+        x:Class="Mumblr.App.Views.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Title="mumblr"
+        Width="1180" Height="720"
+        MinWidth="820" MinHeight="480"
+        Background="{StaticResource InkBrush}">
+
+    <DockPanel>
+
+        <!-- toolbar -->
+        <Border DockPanel.Dock="Top" Classes="bar" BorderThickness="0,0,0,1">
+            <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,*,Auto,Auto,Auto" ColumnSpacing="10">
+
+                <Button Grid.Column="0"
+                        Classes="primary"
+                        Command="{Binding ToggleRecordingCommand}"
+                        IsEnabled="{Binding !IsCommanding}">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Ellipse Classes="dot" Classes.live="{Binding IsRecording}" />
+                        <TextBlock Text="{Binding RecordButtonText}" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+
+                <Border Grid.Column="1" Classes="badge"
+                        Classes.live="{Binding IsRecording}"
+                        Classes.working="{Binding IsCommanding}">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Ellipse Classes="dot"
+                                 Classes.live="{Binding IsRecording}"
+                                 Classes.working="{Binding IsCommanding}" />
+                        <TextBlock Text="{Binding StateLabel}" FontSize="12" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Border>
+
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6">
+                    <TextBlock Classes="label" Text="MIC" />
+                    <ComboBox ItemsSource="{Binding Devices}"
+                              SelectedItem="{Binding SelectedDevice}"
+                              MinWidth="220" MaxWidth="300"
+                              PlaceholderText="pick a microphone" />
+                    <Button Content="&#x21BB;" Command="{Binding RefreshDevicesCommand}" ToolTip.Tip="Rescan devices" />
+                </StackPanel>
+
+                <Border Grid.Column="3" Width="90" Height="8" CornerRadius="4"
+                        Background="{StaticResource PanelRaisedBrush}" VerticalAlignment="Center">
+                    <ProgressBar Minimum="0" Maximum="1" Value="{Binding Level}"
+                                 Height="8" CornerRadius="4"
+                                 Foreground="{StaticResource GoodBrush}"
+                                 Background="Transparent" />
+                </Border>
+
+                <StackPanel Grid.Column="5" Orientation="Horizontal" Spacing="6">
+                    <TextBlock Classes="label" Text="STT" />
+                    <ComboBox ItemsSource="{Binding SttModes}"
+                              SelectedItem="{Binding SelectedSttMode}"
+                              MinWidth="110"
+                              IsEnabled="{Binding !IsRecording}" />
+                </StackPanel>
+
+                <Button Grid.Column="6" Content="Copy" Command="{Binding CopyCommand}" />
+                <Button Grid.Column="7" Content="Config" Command="{Binding OpenConfigCommand}" />
+            </Grid>
+        </Border>
+
+        <!-- status bar -->
+        <Border DockPanel.Dock="Bottom" Classes="bar" BorderThickness="0,1,0,0" Padding="12,6">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                <TextBlock Grid.Column="0"
+                           Text="{Binding StatusMessage}"
+                           TextTrimming="CharacterEllipsis"
+                           Foreground="{Binding IsWarning, Converter={x:Static vm:Converters.WarningBrush}}" />
+                <TextBlock Grid.Column="1" Classes="label" Text="{Binding HotkeyHint}" />
+            </Grid>
+        </Border>
+
+        <Grid ColumnDefinitions="*,6,380">
+
+            <!-- channel 1: the dictation buffer -->
+            <Grid Grid.Column="0" RowDefinitions="Auto,*,Auto">
+                <Border Grid.Row="0" Classes="bar" Padding="12,6" BorderThickness="0,0,0,1">
+                    <TextBlock Classes="label mono" Text="{Binding DocumentPath}" TextTrimming="CharacterEllipsis" />
+                </Border>
+
+                <ae:TextEditor Grid.Row="1"
+                               Name="Editor"
+                               Background="{StaticResource InkBrush}"
+                               FontFamily="Cascadia Mono,Consolas,DejaVu Sans Mono,monospace"
+                               FontSize="14"
+                               ShowLineNumbers="True"
+                               WordWrap="True"
+                               HorizontalScrollBarVisibility="Disabled"
+                               VerticalScrollBarVisibility="Auto"
+                               Padding="8" />
+
+                <Border Grid.Row="2" Classes="bar" Padding="12,6" BorderThickness="0,1,0,0"
+                        IsVisible="{Binding HasPreview}">
+                    <TextBlock Text="{Binding PreviewText}"
+                               FontStyle="Italic"
+                               Foreground="{StaticResource TextDimBrush}"
+                               TextWrapping="Wrap" />
+                </Border>
+            </Grid>
+
+            <GridSplitter Grid.Column="1" Background="{StaticResource HairlineBrush}" />
+
+            <!-- channel 2: commands only, never content -->
+            <Border Grid.Column="2" Background="{StaticResource PanelBrush}"
+                    BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1,0,0,0">
+                <DockPanel>
+                    <Border DockPanel.Dock="Top" Padding="12,8" BorderThickness="0,0,0,1"
+                            BorderBrush="{StaticResource HairlineBrush}">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Classes="label" Text="COMMAND LOG" VerticalAlignment="Center" />
+                            <Button Grid.Column="1" Content="Revert last"
+                                    Command="{Binding RevertLastCommandCommand}"
+                                    IsEnabled="{Binding CanRevert}"
+                                    FontSize="11" Padding="8,3" />
+                        </Grid>
+                    </Border>
+
+                    <ScrollViewer Padding="12">
+                        <ItemsControl ItemsSource="{Binding CommandLog}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:CommandLogItem">
+                                    <Border Classes="card">
+                                        <StackPanel Spacing="6">
+                                            <Grid ColumnDefinitions="Auto,*,Auto">
+                                                <TextBlock Classes="label mono" Text="{Binding Time}" />
+                                                <TextBlock Grid.Column="2" Classes="label" Text="{Binding Duration}" />
+                                            </Grid>
+                                            <TextBlock Text="{Binding CommandText}" TextWrapping="Wrap" FontSize="13" />
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <Ellipse Classes="dot"
+                                                         Classes.working="{Binding IsBusy}"
+                                                         Classes.live="{Binding IsFailed}" />
+                                                <TextBlock Classes="label" Text="{Binding StatusText}" />
+                                            </StackPanel>
+                                            <TextBlock Text="{Binding Response}"
+                                                       IsVisible="{Binding Response, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                                       TextWrapping="Wrap"
+                                                       FontSize="12"
+                                                       Foreground="{StaticResource TextDimBrush}" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
+        </Grid>
+    </DockPanel>
+</Window>

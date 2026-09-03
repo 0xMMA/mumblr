@@ -1,0 +1,35 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test --configuration Release --no-build --verbosity normal
+
+      - name: Publish (smoke check the release layout)
+        run: dotnet publish src/Mumblr.App/Mumblr.App.csproj -c Release -r win-x64 --self-contained true -o publish
+
+      - name: Check the entry point exists
+        shell: pwsh
+        run: |
+          if (-not (Test-Path publish/mumblr.exe)) { throw "mumblr.exe missing from the publish output" }

@@ -9,7 +9,7 @@ namespace Mumblr.Core.Stt;
 /// Scribe v2 batch: buffers the whole take and sends one POST at stop.
 /// Slower to first text than realtime, but the most accurate and it takes 1000 keyterms.
 /// </summary>
-public sealed class ElevenLabsBatchSttEngine : ISttEngine
+public sealed class ElevenLabsBatchSttEngine : ISttEngine, IClipTranscriber
 {
     private readonly HttpClient http;
     private readonly Func<string> apiKeyFactory;

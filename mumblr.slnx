@@ -2,4 +2,5 @@
   <Project Path="src/Mumblr.Core/Mumblr.Core.csproj" />
   <Project Path="src/Mumblr.App/Mumblr.App.csproj" />
   <Project Path="test/Mumblr.Core.Tests/Mumblr.Core.Tests.csproj" />
+  <Project Path="test/Mumblr.App.Tests/Mumblr.App.Tests.csproj" />
 </Solution>
