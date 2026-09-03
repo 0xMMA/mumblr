@@ -18,6 +18,7 @@ public sealed class ElevenLabsRealtimeSttEngine : ISttEngine
     private readonly Func<ClientWebSocket> socketFactory;
     private readonly SemaphoreSlim sendLock = new(1, 1);
     private readonly MemoryStream pending = new();
+    private readonly Lock pendingGate = new();
 
     private ClientWebSocket? socket;
     private CancellationTokenSource? receiveCts;
@@ -47,7 +48,9 @@ public sealed class ElevenLabsRealtimeSttEngine : ISttEngine
         await ws.ConnectAsync(uri, cancellationToken).ConfigureAwait(false);
 
         socket = ws;
-        pending.SetLength(0);
+        lock (pendingGate)
+            pending.SetLength(0);
+
         receiveCts = new CancellationTokenSource();
         receiveLoop = Task.Run(() => ReceiveLoopAsync(ws, receiveCts.Token), CancellationToken.None);
     }
@@ -58,22 +61,24 @@ public sealed class ElevenLabsRealtimeSttEngine : ISttEngine
         if (ws is not { State: WebSocketState.Open })
             return;
 
-        pending.Write(pcm16.Span);
-        if (pending.Length < ChunkBytes)
-            return;
-
-        var buffered = pending.ToArray();
-        pending.SetLength(0);
-
-        var offset = 0;
-        while (buffered.Length - offset >= ChunkBytes)
+        byte[] ready;
+        lock (pendingGate)
         {
-            await SendChunkAsync(ws, buffered.AsMemory(offset, ChunkBytes), commit: false, cancellationToken).ConfigureAwait(false);
-            offset += ChunkBytes;
+            // The capture thread fills this while the UI thread may be stopping the take.
+            pending.Write(pcm16.Span);
+            if (pending.Length < ChunkBytes)
+                return;
+
+            var buffered = pending.ToArray();
+            var whole = buffered.Length / ChunkBytes * ChunkBytes;
+            ready = buffered[..whole];
+
+            pending.SetLength(0);
+            pending.Write(buffered, whole, buffered.Length - whole);
         }
 
-        if (offset < buffered.Length)
-            pending.Write(buffered, offset, buffered.Length - offset);
+        for (var offset = 0; offset < ready.Length; offset += ChunkBytes)
+            await SendChunkAsync(ws, ready.AsMemory(offset, ChunkBytes), commit: false, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task StopAsync(CancellationToken cancellationToken = default)
@@ -90,8 +95,13 @@ public sealed class ElevenLabsRealtimeSttEngine : ISttEngine
             if (ws.State == WebSocketState.Open)
             {
                 // Flush the tail and ask the server to commit whatever is left.
-                var tail = pending.ToArray();
-                pending.SetLength(0);
+                byte[] tail;
+                lock (pendingGate)
+                {
+                    tail = pending.ToArray();
+                    pending.SetLength(0);
+                }
+
                 await SendChunkAsync(ws, tail, commit: true, cancellationToken).ConfigureAwait(false);
 
                 // Give the transcriber a moment to send the last committed segment.

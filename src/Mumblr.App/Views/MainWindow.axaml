@@ -5,6 +5,7 @@
         x:Class="Mumblr.App.Views.MainWindow"
         x:DataType="vm:MainViewModel"
         Title="mumblr"
+        Icon="avares://mumblr/Assets/mumblr.png"
         Width="1180" Height="720"
         MinWidth="820" MinHeight="480"
         Background="{StaticResource InkBrush}">

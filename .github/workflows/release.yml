@@ -60,6 +60,7 @@ jobs:
           --mainExe mumblr.exe
           --packTitle mumblr
           --packAuthors "0xMMA"
+          --icon src/Mumblr.App/Assets/mumblr.ico
           --outputDir releases
           --releaseNotes RELEASE_NOTES.md
 

@@ -5,6 +5,7 @@
     <AssemblyName>mumblr</AssemblyName>
     <RootNamespace>Mumblr.App</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets/mumblr.ico</ApplicationIcon>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>

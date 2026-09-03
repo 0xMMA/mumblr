@@ -14,6 +14,7 @@ public sealed class ElevenLabsBatchSttEngine : ISttEngine, IClipTranscriber
     private readonly HttpClient http;
     private readonly Func<string> apiKeyFactory;
     private readonly MemoryStream buffer = new();
+    private readonly Lock bufferGate = new();
     private SttSessionOptions? options;
 
     public ElevenLabsBatchSttEngine(HttpClient http, Func<string>? apiKeyFactory = null)
@@ -32,29 +33,42 @@ public sealed class ElevenLabsBatchSttEngine : ISttEngine, IClipTranscriber
     public Task StartAsync(SttSessionOptions sessionOptions, CancellationToken cancellationToken = default)
     {
         options = sessionOptions;
-        buffer.SetLength(0);
+        lock (bufferGate)
+            buffer.SetLength(0);
         _ = PartialTranscript; // batch never produces partials
         return Task.CompletedTask;
     }
 
     public ValueTask PushAudioAsync(ReadOnlyMemory<byte> pcm16, CancellationToken cancellationToken = default)
     {
-        buffer.Write(pcm16.Span);
+        // The capture thread writes here while the UI thread may already be stopping the take.
+        lock (bufferGate)
+            buffer.Write(pcm16.Span);
+
         return ValueTask.CompletedTask;
     }
 
     public async Task StopAsync(CancellationToken cancellationToken = default)
     {
-        if (options is null || buffer.Length == 0)
+        if (options is null)
             return;
 
         var sessionOptions = options;
         options = null;
 
+        byte[] audio;
+        lock (bufferGate)
+        {
+            audio = buffer.ToArray();
+            buffer.SetLength(0);
+        }
+
+        if (audio.Length == 0)
+            return;
+
         try
         {
-            var text = await TranscribeAsync(buffer.ToArray(), sessionOptions, cancellationToken).ConfigureAwait(false);
-            buffer.SetLength(0);
+            var text = await TranscribeAsync(audio, sessionOptions, cancellationToken).ConfigureAwait(false);
 
             if (!string.IsNullOrWhiteSpace(text))
                 SegmentCommitted?.Invoke(text.Trim());
