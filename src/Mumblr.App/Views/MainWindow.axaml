@@ -69,7 +69,14 @@
                 </StackPanel>
 
                 <Button Grid.Column="7" Content="Copy" Command="{Binding CopyCommand}" />
-                <Button Grid.Column="8" Content="Config" Command="{Binding OpenConfigCommand}" />
+                <StackPanel Grid.Column="8" Orientation="Horizontal" Spacing="4">
+                    <Button Content="Config"
+                            Command="{Binding OpenConfigCommand}"
+                            ToolTip.Tip="Open config.json - keyterms, dictionary, hotkeys, claude model" />
+                    <Button Content="&#x21BB;"
+                            Command="{Binding ReloadConfigCommand}"
+                            ToolTip.Tip="Reload the config after editing it" />
+                </StackPanel>
             </Grid>
         </Border>
 
