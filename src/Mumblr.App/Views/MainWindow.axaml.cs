@@ -1,7 +1,9 @@
 using System;
 using System.Threading.Tasks;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Input.Platform;
+using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using AvaloniaEdit;
 using AvaloniaEdit.Highlighting;
@@ -21,6 +23,14 @@ public partial class MainWindow : Window, IEditorHost
     {
         InitializeComponent();
 
+        var commandButton = this.FindControl<Button>("CommandButton");
+        if (commandButton is not null)
+        {
+            // Hold-to-talk with the mouse, mirroring the global hold key.
+            commandButton.AddHandler(PointerPressedEvent, OnCommandButtonPressed, RoutingStrategies.Tunnel);
+            commandButton.AddHandler(PointerReleasedEvent, OnCommandButtonReleased, RoutingStrategies.Tunnel);
+        }
+
         editor = this.FindControl<TextEditor>("Editor");
         if (editor is not null)
         {
@@ -31,6 +41,12 @@ public partial class MainWindow : Window, IEditorHost
     }
 
     private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
+
+    private void OnCommandButtonPressed(object? sender, PointerPressedEventArgs e) =>
+        (DataContext as MainViewModel)?.PressCommandButton();
+
+    private void OnCommandButtonReleased(object? sender, PointerReleasedEventArgs e) =>
+        (DataContext as MainViewModel)?.ReleaseCommandButton();
 
     public string Text
     {

@@ -34,7 +34,6 @@ public static class ClaudeArgsBuilder
             "--model", config.Model,
             "--effort", config.Effort,
             "--output-format", "json",
-            "--json-schema", ResponseSchema,
             "--permission-mode", "acceptEdits",
             // Nothing interactive may block the call: anything not allow-listed is denied outright.
             "--permission-prompts", "none",
@@ -42,6 +41,12 @@ public static class ClaudeArgsBuilder
             "--add-dir", directory,
             "--append-system-prompt", config.HeaderPrompt,
         };
+
+        if (config.UseJsonSchema)
+        {
+            args.Add("--json-schema");
+            args.Add(ResponseSchema);
+        }
 
         if (config.Restricted)
             args.Add("--restricted");

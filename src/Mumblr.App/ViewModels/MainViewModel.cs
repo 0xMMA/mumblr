@@ -12,6 +12,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Mumblr.App.Audio;
 using Mumblr.App.Hotkeys;
+using Mumblr.App.Updates;
 using Mumblr.Core.Audio;
 using Mumblr.Core.Commands;
 using Mumblr.Core.Config;
@@ -39,7 +40,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private readonly IHotkeyService hotkeys;
     private readonly IClaudeCommandRunner claudeRunner;
     private readonly ISttEngineFactory engineFactory;
+    private readonly UpdateService updates = new();
     private readonly ConcurrentQueue<string> pendingSegments = new();
+    private readonly object wavGate = new();
 
     private MumblrConfig config;
     private TextPostProcessor postProcessor;
@@ -134,6 +137,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private string hotkeyHint = string.Empty;
 
+    [ObservableProperty]
+    private string updateVersion = string.Empty;
+
+    public bool HasUpdate => UpdateVersion.Length > 0;
+
     public bool HasPreview => PreviewText.Length > 0;
 
     public bool CanRevert => snapshots.CanRevert && machine.State != SessionState.Commanding;
@@ -158,7 +166,31 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             Inform($"Writing to {Path.GetFileName(document.MarkdownPath)}");
 
         suppressConfigSave = false;
+
+        _ = CheckForUpdatesAsync();
     }
+
+    private async Task CheckForUpdatesAsync()
+    {
+        var version = await updates.CheckAsync();
+        if (version is not null)
+            UpdateVersion = version;
+    }
+
+    partial void OnUpdateVersionChanged(string value) => OnPropertyChanged(nameof(HasUpdate));
+
+    [RelayCommand]
+    private void InstallUpdate()
+    {
+        Flush();
+        capture.Stop();
+        updates.ApplyAndRestart();
+    }
+
+    /// <summary>Hold-to-talk from the UI, for when the global hook is not an option.</summary>
+    public void PressCommandButton() => _ = BeginCommandAsync();
+
+    public void ReleaseCommandButton() => _ = EndCommandAsync();
 
     // ---------------------------------------------------------------- channel 1
 
@@ -195,7 +227,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             insertOffset = Math.Clamp(editor.CaretOffset, 0, editor.Text.Length);
 
             await StartEngineAsync();
-            wavWriter ??= new WavWriter(document.WavPath);
+            lock (wavGate)
+                wavWriter ??= new WavWriter(document.WavPath);
             capture.Start(SelectedDevice.Id);
 
             machine.TryStartRecording();
@@ -276,7 +309,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
-        wavWriter?.Write(pcm.Span);
+        lock (wavGate)
+            wavWriter?.Write(pcm.Span);
 
         var current = engine;
         if (current is not null)
@@ -697,8 +731,13 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     {
         hotkeys.Dispose();
         capture.Dispose();
-        wavWriter?.Dispose();
-        wavWriter = null;
+
+        lock (wavGate)
+        {
+            wavWriter?.Dispose();
+            wavWriter = null;
+        }
+
         commandClip?.Dispose();
         http.Dispose();
     }

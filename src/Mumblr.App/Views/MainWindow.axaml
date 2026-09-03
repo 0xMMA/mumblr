@@ -13,7 +13,7 @@
 
         <!-- toolbar -->
         <Border DockPanel.Dock="Top" Classes="bar" BorderThickness="0,0,0,1">
-            <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,*,Auto,Auto,Auto" ColumnSpacing="10">
+            <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto,Auto,Auto" ColumnSpacing="10">
 
                 <Button Grid.Column="0"
                         Classes="primary"
@@ -25,7 +25,13 @@
                     </StackPanel>
                 </Button>
 
-                <Border Grid.Column="1" Classes="badge"
+                <Button Grid.Column="1"
+                        Name="CommandButton"
+                        Content="Hold to command"
+                        ToolTip.Tip="Hold, speak an edit, release. claude -p applies it to the file."
+                        IsEnabled="{Binding !IsCommanding}" />
+
+                <Border Grid.Column="2" Classes="badge"
                         Classes.live="{Binding IsRecording}"
                         Classes.working="{Binding IsCommanding}">
                     <StackPanel Orientation="Horizontal" Spacing="8">
@@ -36,7 +42,7 @@
                     </StackPanel>
                 </Border>
 
-                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6">
+                <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="6">
                     <TextBlock Classes="label" Text="MIC" />
                     <ComboBox ItemsSource="{Binding Devices}"
                               SelectedItem="{Binding SelectedDevice}"
@@ -45,7 +51,7 @@
                     <Button Content="&#x21BB;" Command="{Binding RefreshDevicesCommand}" ToolTip.Tip="Rescan devices" />
                 </StackPanel>
 
-                <Border Grid.Column="3" Width="90" Height="8" CornerRadius="4"
+                <Border Grid.Column="4" Width="90" Height="8" CornerRadius="4"
                         Background="{StaticResource PanelRaisedBrush}" VerticalAlignment="Center">
                     <ProgressBar Minimum="0" Maximum="1" Value="{Binding Level}"
                                  Height="8" CornerRadius="4"
@@ -53,7 +59,7 @@
                                  Background="Transparent" />
                 </Border>
 
-                <StackPanel Grid.Column="5" Orientation="Horizontal" Spacing="6">
+                <StackPanel Grid.Column="6" Orientation="Horizontal" Spacing="6">
                     <TextBlock Classes="label" Text="STT" />
                     <ComboBox ItemsSource="{Binding SttModes}"
                               SelectedItem="{Binding SelectedSttMode}"
@@ -61,19 +67,24 @@
                               IsEnabled="{Binding !IsRecording}" />
                 </StackPanel>
 
-                <Button Grid.Column="6" Content="Copy" Command="{Binding CopyCommand}" />
-                <Button Grid.Column="7" Content="Config" Command="{Binding OpenConfigCommand}" />
+                <Button Grid.Column="7" Content="Copy" Command="{Binding CopyCommand}" />
+                <Button Grid.Column="8" Content="Config" Command="{Binding OpenConfigCommand}" />
             </Grid>
         </Border>
 
         <!-- status bar -->
         <Border DockPanel.Dock="Bottom" Classes="bar" BorderThickness="0,1,0,0" Padding="12,6">
-            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="16">
                 <TextBlock Grid.Column="0"
                            Text="{Binding StatusMessage}"
                            TextTrimming="CharacterEllipsis"
                            Foreground="{Binding IsWarning, Converter={x:Static vm:Converters.WarningBrush}}" />
-                <TextBlock Grid.Column="1" Classes="label" Text="{Binding HotkeyHint}" />
+                <Button Grid.Column="1"
+                        Content="{Binding UpdateVersion, StringFormat='Update to {0} and restart'}"
+                        Command="{Binding InstallUpdateCommand}"
+                        IsVisible="{Binding HasUpdate}"
+                        FontSize="11" Padding="8,2" />
+                <TextBlock Grid.Column="2" Classes="label" Text="{Binding HotkeyHint}" />
             </Grid>
         </Border>
 

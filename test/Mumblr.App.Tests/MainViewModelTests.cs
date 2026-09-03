@@ -20,6 +20,7 @@ public sealed class MainViewModelTests : IDisposable
     private readonly FakeClaudeRunner claude = new();
     private readonly ConfigStore configStore;
     private readonly MumblrConfig config;
+    private MainViewModel? viewModel;
 
     public MainViewModelTests()
     {
@@ -35,7 +36,7 @@ public sealed class MainViewModelTests : IDisposable
 
     private MainViewModel CreateViewModel()
     {
-        var viewModel = new MainViewModel(workspace, editor, configStore, devices, capture, hotkeys, claude, engines);
+        viewModel = new MainViewModel(workspace, editor, configStore, devices, capture, hotkeys, claude, engines);
         viewModel.Initialize();
         return viewModel;
     }
@@ -353,6 +354,10 @@ public sealed class MainViewModelTests : IDisposable
 
     public void Dispose()
     {
+        // The WAV file stays open for the whole session, so the view model has to go first:
+        // Windows refuses to delete a directory that still holds an open handle.
+        viewModel?.Shutdown();
+
         if (Directory.Exists(workspace))
             Directory.Delete(workspace, recursive: true);
     }

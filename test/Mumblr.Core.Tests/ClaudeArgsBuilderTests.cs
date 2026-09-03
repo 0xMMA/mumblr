@@ -59,6 +59,15 @@ public class ClaudeArgsBuilderTests
     }
 
     [Fact]
+    public void Structured_output_can_be_turned_off()
+    {
+        var args = ClaudeArgsBuilder.Build(new ClaudeConfig { UseJsonSchema = false }, "x", FilePath).ToList();
+
+        args.ShouldNotContain("--json-schema");
+        args[args.IndexOf("--output-format") + 1].ShouldBe("json");
+    }
+
+    [Fact]
     public void Restricted_is_opt_in()
     {
         ClaudeArgsBuilder.Build(new ClaudeConfig(), "x", FilePath).ShouldNotContain("--restricted");

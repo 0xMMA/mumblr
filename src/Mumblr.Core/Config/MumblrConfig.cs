@@ -82,6 +82,9 @@ public sealed class ClaudeConfig
     /// <summary>Ignores user/project/local settings files in the spawned claude process.</summary>
     public bool Restricted { get; set; }
 
+    /// <summary>Asks for a schema-shaped summary. Turn off if a claude build rejects the flag.</summary>
+    public bool UseJsonSchema { get; set; } = true;
+
     public List<string> AllowedTools { get; set; } = new() { "Read", "Edit" };
 
     public List<string> DisallowedTools { get; set; } = new()

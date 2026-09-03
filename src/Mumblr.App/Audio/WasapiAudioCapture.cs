@@ -62,17 +62,26 @@ public sealed class WasapiAudioCapture : IAudioCapture
                 try
                 {
                     capture.StopRecording();
+                    capture.Dispose();
                 }
                 catch (Exception)
                 {
-                    // The device may already be gone; nothing to recover.
+                    // The device may already be gone, and NAudio disposes the endpoint itself on
+                    // some paths. Either way there is nothing left to recover here.
                 }
 
-                capture.Dispose();
                 capture = null;
             }
 
-            device?.Dispose();
+            try
+            {
+                device?.Dispose();
+            }
+            catch (Exception)
+            {
+                // Already disposed by the capture.
+            }
+
             device = null;
             downmixer = null;
             IsCapturing = false;
