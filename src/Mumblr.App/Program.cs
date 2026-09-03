@@ -27,7 +27,9 @@ internal static class Program
     /// <summary>`mumblr .` means "write the dictation file here". No argument means the current directory.</summary>
     internal static string ResolveTargetDirectory(string[] args)
     {
-        var candidate = Array.Find(args, arg => !arg.StartsWith('-'));
+        // Only the first argument is the target folder. Anything that starts with a dash belongs to
+        // a switch, and its value must not be mistaken for a path.
+        var candidate = args.Length > 0 && !args[0].StartsWith('-') ? args[0] : null;
         if (string.IsNullOrWhiteSpace(candidate))
             return Directory.GetCurrentDirectory();
 
