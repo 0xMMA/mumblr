@@ -53,6 +53,10 @@ The ElevenLabs key comes from the environment only, never from a config file or 
 setx ELEVENLABS_API_KEY "your-key"    # XI_API_KEY also works
 ```
 
+On Linux, where there is no `setx`, `scripts/set-key.sh` does the same job - it stores the key
+in `~/.config/mumblr/env` with mode 600, teaches your shell rc files to read it, and checks the
+key against the API before telling you it worked.
+
 `claude` must be on your `PATH` for channel 2.
 
 Everything else lives in `%APPDATA%\mumblr\config.json` (the **Config** button opens it):
