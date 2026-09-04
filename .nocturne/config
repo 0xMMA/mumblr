@@ -1,0 +1,8 @@
+{
+  "verify": ["dotnet build", "dotnet test"],
+  "taskTimeoutSeconds": 3600,
+  "maxConsecutiveFailures": 3,
+  "maxConsecutiveRateLimits": 2,
+  "model": "opus",
+  "windowHours": 5
+}

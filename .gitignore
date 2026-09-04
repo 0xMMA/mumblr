@@ -7,3 +7,7 @@ releases/
 .idea/
 dictated-*.md
 dictated-*.wav
+
+# nocturne runtime state; the config itself is committed
+.nocturne/*
+!.nocturne/config
