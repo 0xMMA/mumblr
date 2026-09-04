@@ -1,3 +1,8 @@
+> **Historisches Dokument.** Dies ist die Spezifikation, gegen die mumblr vor `v0.1.0` gebaut
+> wurde, unverändert erhalten. Beide Steps sind ausgeliefert; was das Produkt heute tut, steht im
+> [README](../README.md), und was seither entschieden wurde, in `docs/plan-queue/done/`. Wo dieses
+> Dokument und der Code sich widersprechen, gilt der Code.
+
 # mumblr — Requirements v1 (hardened)
 
 ## Zweck

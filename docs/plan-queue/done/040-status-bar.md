@@ -7,8 +7,8 @@ track: main
 
 ## Intent
 The status bar today is one message plus an update button. It says what just happened; it
-does not say what state the app is in. The sibling project `recap` (../recap,
-`src/Recap.Desktop/Views/MainWindow.axaml`) solves the same problem for the same user with a
+does not say what state the app is in. The sibling project [recap](https://github.com/0xMMA/recap)
+(`src/Recap.Desktop/Views/MainWindow.axaml`) solves the same problem for the same user with a
 row of small always-visible facts: recording state, active language, counters, an API
 indicator that is green or red, a clickable version, and a GitHub link.
 

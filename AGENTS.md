@@ -87,9 +87,8 @@ lines verbatim.
   leaked an API key into a transcript and forced a rotation. Use `${#VAR}` for a length and `-n`
   for a check, nothing else.
 - **The API key comes from the environment only** — `ELEVENLABS_API_KEY`, with `XI_API_KEY` as a
-  fallback. Never from config, never from the repo. On this machine it lives in
-  `~/.config/envset/vars.env`; agent shells are non-interactive and do not read `.bashrc`, so
-  source it explicitly when a command needs the key.
+  fallback. Never from config, never from the repo. Agent shells are non-interactive and do not
+  read `.bashrc`, so source whatever holds it before a command that needs it.
 - **Writing `StatusMessage` can erase a standing warning** (`Initialize` and `StopRecordingAsync`
   both did it). Check `IsWarning` before informing, or a real failure becomes a silent one.
 - **ElevenLabs keyterms are repeated parameters, never a JSON array.** Batch 1000 x 50 chars,

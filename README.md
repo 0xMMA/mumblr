@@ -125,6 +125,16 @@ repository. Both come from the environment only, never from config and never fro
 Default hotkeys: `Ctrl+Alt+Space` record, hold `Ctrl+Alt+D` for a command, `Ctrl+Alt+C` copy,
 `Ctrl+Alt+Z` revert. They work while your IDE or terminal has focus.
 
+## What it deliberately is not
+
+- No wake word and no hands-free control - you press something to record.
+- No cursor injection into other applications. The output is a file and the clipboard.
+- No diarization and no long recordings. It is built for a few minutes of thinking out loud.
+- No prompt library or templates beyond the prebuilt command buttons.
+- No cloud LLM inside the app. The only model that touches your text is the Claude Code you
+  installed yourself.
+- No editing while a recording runs - one writer at a time, by design. See the state table above.
+
 ## Compliance
 
 Audio is stored by ElevenLabs on standard tiers, not just processed. Accepted risk - so do not
