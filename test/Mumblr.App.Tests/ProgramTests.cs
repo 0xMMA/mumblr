@@ -49,8 +49,12 @@ public class ProgramTests
 
         var resolved = Program.ResolveTargetDirectory([], currentDirectory: app, applicationDirectory: app);
 
+        // Only that it points somewhere else. Resolving must not create anything - asserting the
+        // directory exists is what made this test pass locally on a folder an earlier run had
+        // left behind, and fail on a clean machine.
         resolved.ShouldNotBe(app);
-        Directory.Exists(resolved).ShouldBeTrue();
+        Path.IsPathRooted(resolved).ShouldBeTrue();
+        Program.IsInsideApplicationDirectory(resolved, app).ShouldBeFalse();
     }
 
     [Fact]
