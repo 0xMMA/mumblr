@@ -24,7 +24,7 @@ plan.
 
 ## Open, and each one needs Michael
 
-1. ~~The release is stale.~~ Closed: `v0.1.1` was tagged and released, and the version is no
+1. ~~The release is stale.~~ Closed at `v0.1.2`: `v0.1.1` was tagged and released, and the version is no
    longer written down anywhere - MinVer derives it from the tag, so the binary, the status bar
    and the release page cannot disagree. Releasing is `git tag vX.Y.Z && git push origin vX.Y.Z`
    and nothing else. See `AGENTS.md`.

@@ -77,6 +77,13 @@ those lines verbatim.
 - **ElevenLabs keyterms** are repeated parameters, never a JSON array: batch 1000 x 50 chars,
   realtime 50 x 20, at most 5 words, and `< > { } [ ] \` are forbidden inside a term. One bad
   term kills the whole request, so `KeytermPlanner` drops rather than repairs.
+- **`vpk upload` reads the asset names from its own manifest, not from the directory.** Renaming
+  a file between `pack` and `upload` makes it fail with "Could not find file" and leaves a draft
+  release holding only the `.nupkg`. Rename on the release afterwards, through the GitHub API -
+  `releases.win.json` references only the `.nupkg`, so the installer and the portable zip are
+  free to be renamed.
+- **`strings` reads ASCII by default and .NET literals are UTF-16.** Verifying a shipped binary
+  with plain `strings` will tell you a string is missing when it is there. Use `strings -el`.
 - **Check CLI flags against `claude --help`,** not against memory. The spec says so explicitly and
   it has been right to.
 
