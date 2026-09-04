@@ -92,13 +92,23 @@ those lines verbatim.
 Green tests are not the finish line. When the work is done - the code written, the suite passing,
 the acceptance list ticked - hand it to a fresh reviewer before calling it done:
 
+Dispatch a **fresh** agent - one with none of the working session's context - and have *it* run
+the review:
+
 ```
-/review-pr
+Agent(subagent_type: "general-purpose", prompt: "run /review-pr on <target> ...")
 ```
 
-Run it subagent-driven, and run it even when there is no pull request. The point is not the PR,
-it is a reader who did not write the code, has not been talked into the design, and has no
-investment in the approach being right. Everything expensive this repo has learned - a request
+Not a fork, and not the skill invoked directly from the working session. `review-pr` declares
+`context: fork` in its own frontmatter, so calling it from the session that wrote the code hands
+the reviewer every justification that was made along the way. That reviewer inherits the
+assumptions instead of testing them: it once looked straight at a German button label in an
+English window, commented on the spelling of the umlaut, and never questioned the language -
+because the session it forked had already settled that.
+
+Run it even when there is no pull request. The point is not the PR, it is a reader who did not
+write the code, has not been talked into the design, and has no investment in the approach being
+right. Everything expensive this repo has learned - a request
 that never reached ElevenLabs, an update check that claimed to be current without asking, a
 release that renamed itself into a broken upload - looked fine from the inside while it was being
 written.
