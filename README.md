@@ -22,10 +22,14 @@ public and these two replace the static badges above:
 
 <img src="docs/assets/screenshot.png" width="920" alt="The mumblr window: dictation buffer on the left, command log on the right." />
 
-### [Download the portable build](https://github.com/0xMMA/mumblr/releases/latest)
+### [Download for Windows](https://github.com/0xMMA/mumblr/releases/latest)
 
 `mumblr-<version>-win-Setup.exe` installs per user and puts `mumblr` on your `PATH`. The portable
 zip does not: unzip it and add the folder to `PATH` yourself.
+
+Bring two paid services of your own: an [ElevenLabs](https://elevenlabs.io) key, billed per minute
+of audio, and [Claude Code](https://claude.com/claude-code) on your `PATH` if you want the command
+channel. mumblr is free and talks to nothing besides those two.
 
 </div>
 
@@ -68,7 +72,7 @@ Commands you say word for word every day belong on a button instead. `prebuiltCo
 config becomes a row of buttons above the log; clicking one skips the microphone and the STT round
 trip entirely and takes the identical path from there - snapshot, `claude -p`, reload, revert. The
 shipped one is the sentence that gets dictated most: *Mach Grammatik, Satzbau und Satzordnung
-ordentlich.*
+ordentlich. Am Inhalt nichts ändern.*
 
 ## States
 
@@ -109,7 +113,6 @@ Everything else lives in `%APPDATA%\mumblr\config.json` (the **Config** button o
 | `sttMode` | `Realtime` or `Batch` |
 | `keyterms` | Priority ordered. The head of the list survives the realtime limit of 50. A term carrying `< > { } [ ] \` or more than five words is dropped - ElevenLabs refuses the whole request over one bad term. Past 100 terms every request is billed as at least 20 seconds, and keyterms carry a 20% surcharge. |
 | `dictionary` | Literal replacements applied to committed text |
-| `prebuiltCommands` | `label` and `text` per button. Sent to `claude -p` verbatim, no microphone involved. |
 | `hotkeys` | `toggleRecording`, `copy`, `revertCommand`, `commandHoldKey` |
 | `claude` | `model`, `effort`, `headerPrompt`, allowed/disallowed tools, timeout |
 | `stt` | Model ids, `noVerbatim`, `languageCode`, base URL, VAD silence threshold, `keytermsEncoding` |

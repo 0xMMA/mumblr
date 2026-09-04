@@ -1,0 +1,4 @@
+# Keep line endings sane across the Linux checkout and the windows-latest build.
+* text=auto
+*.png binary
+*.ico binary
