@@ -80,9 +80,30 @@ public sealed class HotkeyConfig
 
 public sealed class ClaudeConfig
 {
+    /// <summary>
+    /// A dictation fix-up is short, rare and latency tolerant - the spec already budgets 15-30s
+    /// per command - so the best model at the highest effort is the default, not a config choice
+    /// someone has to discover.
+    /// </summary>
+    public const string DefaultModel = "opus";
+
+    public const string DefaultEffort = "high";
+
     public string Executable { get; set; } = "claude";
-    public string Model { get; set; } = "opus";
-    public string Effort { get; set; } = "high";
+    public string Model { get; set; } = DefaultModel;
+    public string Effort { get; set; } = DefaultEffort;
+
+    /// <summary>
+    /// A config written by an older build, or hand-edited to an empty string, would otherwise
+    /// produce <c>--model ""</c>. Falling back beats both throwing and passing an empty flag:
+    /// a broken config must never stop a command, the same rule the config loader follows.
+    /// </summary>
+    public string ResolveModel() => string.IsNullOrWhiteSpace(Model) ? DefaultModel : Model.Trim();
+
+    public string ResolveEffort() => string.IsNullOrWhiteSpace(Effort) ? DefaultEffort : Effort.Trim();
+
+    /// <summary>What the command log shows, so a downgrade is visible without reading the config.</summary>
+    public string Describe() => $"{ResolveModel()} / {ResolveEffort()} effort";
     public int TimeoutSeconds { get; set; } = 180;
 
     /// <summary>Ignores user/project/local settings files in the spawned claude process.</summary>

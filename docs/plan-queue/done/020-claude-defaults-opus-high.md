@@ -41,3 +41,14 @@ All are current. Re-check them here rather than trusting this note.
 ## Out of scope
 - Model/effort pickers in the UI.
 - Any change to the header prompt or the allowed tool set.
+
+## Log
+- The defaults were already `opus`/`high`; the hole was that nothing defended them. `ClaudeConfig`
+  now resolves a null, empty or whitespace value back to the constant instead of handing
+  `--model ""` to the CLI, and `Describe()` gives the log a single place to read it from.
+- Flags re-verified against `claude --help` on 2026-09-04: `--model`, `--effort`, `--json-schema`,
+  `--permission-prompts`, `--no-session-persistence`, `--restricted` are all current. `--effort`
+  takes low, medium, high, xhigh, max.
+- `.nocturne/config` pins `"model": "opus"` for the agents working this queue. Nocturne has no
+  effort field at all - `nocturne.cs` only ever passes `--model` - so high effort for queue agents
+  is a change in the nocturne repo, not something this task could deliver.

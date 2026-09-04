@@ -409,6 +409,20 @@ public sealed class MainViewModelTests : IDisposable
         engines.Last!.Options!.KeytermsEncoding.ShouldBe("repeated");
     }
 
+    [AvaloniaFact]
+    public async Task The_command_log_names_the_model_that_answered()
+    {
+        var viewModel = CreateViewModel();
+
+        hotkeys.PressCommandKey();
+        await PumpAsync();
+        capture.Emit(new byte[640]);
+        hotkeys.ReleaseCommandKey();
+        await PumpAsync();
+
+        viewModel.CommandLog[0].Engine.ShouldBe("opus / high effort");
+    }
+
     public void Dispose()
     {
         // The WAV file stays open for the whole session, so the view model has to go first:

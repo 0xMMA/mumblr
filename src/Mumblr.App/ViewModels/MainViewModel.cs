@@ -468,6 +468,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
 
         entry.CommandText = commandText;
+        entry.Engine = config.Claude.Describe();
         entry.Status = CommandStatus.Running;
         StatusMessage = "Claude is working...";
 

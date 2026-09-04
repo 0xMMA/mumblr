@@ -18,6 +18,31 @@ public class ClaudeArgsBuilderTests
     }
 
     [Fact]
+    public void A_blank_model_or_effort_falls_back_instead_of_emitting_an_empty_flag()
+    {
+        // A config written by an older build, or hand-edited, must not silently downgrade the
+        // command to whatever `claude --model ""` happens to do.
+        var config = new ClaudeConfig { Model = "  ", Effort = string.Empty };
+
+        var args = ClaudeArgsBuilder.Build(config, "aufraeumen", FilePath).ToList();
+
+        args[args.IndexOf("--model") + 1].ShouldBe("opus");
+        args[args.IndexOf("--effort") + 1].ShouldBe("high");
+    }
+
+    [Fact]
+    public void An_explicit_model_still_wins()
+    {
+        var config = new ClaudeConfig { Model = "sonnet", Effort = "low" };
+
+        var args = ClaudeArgsBuilder.Build(config, "aufraeumen", FilePath).ToList();
+
+        args[args.IndexOf("--model") + 1].ShouldBe("sonnet");
+        args[args.IndexOf("--effort") + 1].ShouldBe("low");
+        config.Describe().ShouldBe("sonnet / low effort");
+    }
+
+    [Fact]
     public void Requests_structured_json_output_for_the_command_log()
     {
         var args = ClaudeArgsBuilder.Build(new ClaudeConfig(), "aufraeumen", FilePath).ToList();

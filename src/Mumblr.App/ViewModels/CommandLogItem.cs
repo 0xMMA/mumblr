@@ -22,6 +22,10 @@ public sealed partial class CommandLogItem : ObservableObject
     [ObservableProperty]
     private string duration = string.Empty;
 
+    /// <summary>Which model and effort answered, so a downgraded config is visible in the log.</summary>
+    [ObservableProperty]
+    private string engine = string.Empty;
+
     public DateTimeOffset StartedAt { get; } = DateTimeOffset.Now;
 
     public string Time => StartedAt.ToString("HH:mm:ss");

@@ -31,8 +31,8 @@ public static class ClaudeArgsBuilder
         {
             "--print",
             BuildPrompt(commandText, absoluteFilePath),
-            "--model", config.Model,
-            "--effort", config.Effort,
+            "--model", config.ResolveModel(),
+            "--effort", config.ResolveEffort(),
             "--output-format", "json",
             "--permission-mode", "acceptEdits",
             // Nothing interactive may block the call: anything not allow-listed is denied outright.

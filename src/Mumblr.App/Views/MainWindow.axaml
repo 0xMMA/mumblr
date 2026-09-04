@@ -157,6 +157,8 @@
                                                          Classes.working="{Binding IsBusy}"
                                                          Classes.live="{Binding IsFailed}" />
                                                 <TextBlock Classes="label" Text="{Binding StatusText}" />
+                                                <TextBlock Classes="label" Text="{Binding Engine}"
+                                                           IsVisible="{Binding Engine, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                                             </StackPanel>
                                             <TextBlock Text="{Binding Response}"
                                                        IsVisible="{Binding Response, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
