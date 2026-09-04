@@ -24,7 +24,8 @@ public and these two replace the static badges above:
 
 ### [Download the portable build](https://github.com/0xMMA/mumblr/releases/latest)
 
-No installer needed - unzip `mumblr-<version>-win-Portable.zip`, put the folder on your `PATH`, done.
+`mumblr-<version>-win-Setup.exe` installs per user and puts `mumblr` on your `PATH`. The portable
+zip does not: unzip it and add the folder to `PATH` yourself.
 
 </div>
 
@@ -90,6 +91,15 @@ setx ELEVENLABS_API_KEY "your-key"    # XI_API_KEY also works
 ```
 
 `claude` must be on your `PATH` for channel 2.
+
+The installer adds mumblr to your user `PATH` and removes it again on uninstall, so `mumblr .`
+works from any folder. A `PATH` change only reaches new terminals - the one you installed from
+still will not find it. For the portable build, add the folder you unzipped to `PATH` by hand:
+
+```powershell
+$dir = "C:\where\you\unzipped"
+[Environment]::SetEnvironmentVariable('Path', "$([Environment]::GetEnvironmentVariable('Path','User'));$dir", 'User')
+```
 
 Everything else lives in `%APPDATA%\mumblr\config.json` (the **Config** button opens it):
 

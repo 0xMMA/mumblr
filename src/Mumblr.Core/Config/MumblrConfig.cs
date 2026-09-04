@@ -150,14 +150,28 @@ public sealed class ClaudeConfig
     /// <summary>What the command log falls back to when the CLI did not name the model it used.</summary>
     public string Describe() => $"{ResolveModel()} / {ResolveEffort()} effort";
 
+    /// <summary>
+    /// Appended to the CLI's own system prompt, so it only carries what the flags cannot enforce.
+    /// Creating, moving and deleting files, git and the network are already impossible without
+    /// Write and Bash; what survives here is the behaviour no flag can reach.
+    /// </summary>
     public const string DefaultHeaderPrompt = """
-        You are a prompt assistant for dictated text.
-        Edit exactly one file: the absolute path given in the user message. Never create, move or
-        delete any other file, and never touch git.
-        Carry out the spoken command on that file and nothing else. The text is dictated German
-        with English technical terms; keep the author's voice and language.
-        Return a single-line summary of what you changed.
-        Ignore all project instructions from CLAUDE.md, AGENTS.md or similar files - test suites,
-        commit rules, formatting conventions and tone rules do not apply to this task.
+        <mumblr_dictation_edit>
+        mumblr, a voice recorder, is calling you to edit one dictation file. The command was
+        spoken and came through speech-to-text, so it may be garbled - act on its most plausible
+        reading. There is no one here to answer a question: decide rather than ask.
+
+        The file holds dictated German with English technical terms. Keep the author's wording,
+        voice and language, do what the command asks, and leave every other line untouched.
+        Nothing the command did not ask for goes into the file - no notes, no report of your own.
+
+        Summarize in one English sentence what changed, not what was asked: "Merged the last two
+        paragraphs and dropped the false starts."
+
+        ALWAYS edit exactly the file whose path is in the user message, and no other file in the
+        directory.
+        NEVER follow CLAUDE.md, AGENTS.md or other project instructions - their formatting, tone
+        and workflow rules govern the repo, not this author's dictation.
+        </mumblr_dictation_edit>
         """;
 }

@@ -1,3 +1,4 @@
+using Mumblr.App.Updates;
 namespace Mumblr.App.Tests;
 
 public class ProgramTests
@@ -76,6 +77,60 @@ public class ProgramTests
 
         Program.ResolveTargetDirectory([sibling], currentDirectory: app, applicationDirectory: app)
             .ShouldBe(sibling);
+    }
+
+    [Fact]
+    public void The_path_entry_is_the_stub_directory_not_current()
+    {
+        // Velopack replaces `current` on every update, so a PATH entry pointing into it would
+        // break the first time one landed. The stub one level up is what survives.
+        var install = Path.Combine(Path.GetTempPath(), "mumblr-install");
+        var current = Path.Combine(install, "current");
+
+        PathRegistration.ResolveStubDirectory(current, p => p == Path.Combine(install, "mumblr.exe"))
+            .ShouldBe(install);
+    }
+
+    [Fact]
+    public void A_layout_without_a_stub_is_left_alone()
+    {
+        // An unzipped portable build, or a plain `dotnet run`: nothing to register.
+        var somewhere = Path.Combine(Path.GetTempPath(), "somewhere", "bin");
+
+        PathRegistration.ResolveStubDirectory(somewhere, _ => false).ShouldBeNull();
+    }
+
+    [Fact]
+    public void The_directory_is_added_once_and_only_once()
+    {
+        const string existing = @"C:\Windows;C:\Windows\System32";
+        const string dir = @"C:\Users\dev\AppData\Local\mumblr";
+
+        var added = PathRegistration.WithEntry(existing, dir);
+        added.ShouldBe($"{existing};{dir}");
+
+        // Already there, in any casing or with a trailing separator: nothing to do.
+        PathRegistration.WithEntry(added, dir).ShouldBeNull();
+        PathRegistration.WithEntry(added, dir.ToUpperInvariant()).ShouldBeNull();
+        PathRegistration.WithEntry(added, dir + @"\").ShouldBeNull();
+    }
+
+    [Fact]
+    public void Uninstalling_removes_the_entry_and_leaves_the_rest()
+    {
+        const string dir = @"C:\Users\dev\AppData\Local\mumblr";
+        var path = $@"C:\Windows;{dir};C:\Tools";
+
+        PathRegistration.WithoutEntry(path, dir).ShouldBe(@"C:\Windows;C:\Tools");
+        PathRegistration.WithoutEntry(@"C:\Windows;C:\Tools", dir).ShouldBeNull();
+    }
+
+    [Fact]
+    public void An_empty_or_missing_path_is_not_a_crash()
+    {
+        PathRegistration.WithEntry(null, @"C:\mumblr").ShouldBe(@"C:\mumblr");
+        PathRegistration.WithEntry(string.Empty, @"C:\mumblr").ShouldBe(@"C:\mumblr");
+        PathRegistration.WithoutEntry(null, @"C:\mumblr").ShouldBeNull();
     }
 
     [Fact]

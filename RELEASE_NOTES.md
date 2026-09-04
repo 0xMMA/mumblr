@@ -5,9 +5,20 @@ Ultra specific voice recorder for development work: talk, get markdown, hand it 
 **Portable:** download `mumblr-<version>-win-Portable.zip`, unzip anywhere, put the folder on your `PATH`,
 then run `mumblr .` in the repo you are working in.
 
-**Installer:** `mumblr-<version>-win-Setup.exe` installs per user. In-app updates need a release
-feed the app can read - see the repository if the version button reports that it could not reach
-one.
+**Installer:** `mumblr-<version>-win-Setup.exe` installs per user and puts `mumblr` on your `PATH`,
+so `mumblr .` works from any folder. Open a new terminal afterwards - a `PATH` change does not
+reach one that is already running. In-app updates need a release feed the app can read; see the
+repository if the version button reports that it could not reach one.
+
+### Fixed in 0.1.5
+
+- **The installer puts `mumblr` on your `PATH`.** It did not, and neither did unzipping the
+  portable build, so the one command the whole app exists for - `mumblr .` in a repo folder -
+  answered "The term 'mumblr' is not recognized". Uninstalling removes the entry again. Open a new
+  terminal after installing.
+- The status line is no longer squeezed out by the hotkey hint next to it, and both carry a
+  tooltip with their full text. The window can no longer be resized until the toolbar's right-hand
+  controls leave the screen.
 
 ### Fixed in 0.1.4
 

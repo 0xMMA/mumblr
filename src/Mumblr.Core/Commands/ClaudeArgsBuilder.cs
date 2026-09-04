@@ -13,11 +13,15 @@ public static class ClaudeArgsBuilder
     public const string ResponseSchema =
         """{"type":"object","properties":{"summary":{"type":"string"}},"required":["summary"],"additionalProperties":false}""";
 
+    /// <summary>
+    /// Two labelled fields and nothing else. The header prompt carries the rules; repeating them
+    /// here would only compete with them for attention.
+    /// </summary>
     public static string BuildPrompt(string commandText, string absoluteFilePath) =>
         $"""
-        Spoken command: {commandText.Trim()}
+        File: {absoluteFilePath}
 
-        Target file (edit only this one, absolute path): {absoluteFilePath}
+        Command: {commandText.Trim()}
         """;
 
     public static IReadOnlyList<string> Build(ClaudeConfig config, string commandText, string absoluteFilePath)

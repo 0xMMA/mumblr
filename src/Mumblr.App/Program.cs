@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using Avalonia;
+using Mumblr.App.Updates;
 using Velopack;
 
 namespace Mumblr.App;
@@ -17,7 +18,13 @@ internal static class Program
     public static void Main(string[] args)
     {
         // Velopack has to run first: it handles install/update/uninstall hooks and exits for them.
-        VelopackApp.Build().Run();
+        // mumblr is a command you type in a repo folder, so installing it has to put it on PATH -
+        // Velopack does not, and without it `mumblr .` is not a thing you can run.
+        VelopackApp.Build()
+            .OnAfterInstallFastCallback(_ => PathRegistration.Register())
+            .OnAfterUpdateFastCallback(_ => PathRegistration.Register())
+            .OnBeforeUninstallFastCallback(_ => PathRegistration.Unregister())
+            .Run();
 
         TargetDirectory = ResolveTargetDirectory(args);
 
