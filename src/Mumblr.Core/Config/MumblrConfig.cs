@@ -31,6 +31,20 @@ public sealed class MumblrConfig
         "Velopack",
     };
 
+    /// <summary>
+    /// Commands that are always the same sentence. Speaking a fixed string into a microphone so it
+    /// can be transcribed back into the same fixed string is ceremony, and it adds a round trip
+    /// that can mis-hear it. These skip STT entirely.
+    /// </summary>
+    public List<PrebuiltCommand> PrebuiltCommands { get; set; } = new()
+    {
+        new PrebuiltCommand
+        {
+            Label = "Grammatik",
+            Text = "Mach Grammatik, Satzbau und Satzordnung ordentlich. Am Inhalt nichts aendern.",
+        },
+    };
+
     /// <summary>Deterministic client-side replacements applied to committed transcript text.</summary>
     public Dictionary<string, string> Dictionary { get; set; } = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -38,6 +52,14 @@ public sealed class MumblrConfig
         ["cloud code"] = "Claude Code",
         ["dotnet"] = ".NET",
     };
+}
+
+/// <summary>One button in the command panel: a label to click and the command it sends.</summary>
+public sealed class PrebuiltCommand
+{
+    public string Label { get; set; } = string.Empty;
+
+    public string Text { get; set; } = string.Empty;
 }
 
 public sealed class SttConfig

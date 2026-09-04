@@ -423,6 +423,82 @@ public sealed class MainViewModelTests : IDisposable
         viewModel.CommandLog[0].Engine.ShouldBe("opus / high effort");
     }
 
+    [AvaloniaFact]
+    public async Task A_prebuilt_command_runs_without_the_microphone()
+    {
+        var viewModel = CreateViewModel();
+        editor.Text = "erster satz zweiter satz";
+        claude.FileContentAfterRun = "Erster Satz. Zweiter Satz.";
+
+        var prebuilt = viewModel.PrebuiltCommands[0];
+        await viewModel.RunPrebuiltCommand.ExecuteAsync(prebuilt);
+        await PumpAsync();
+
+        claude.Calls.Single().Command.ShouldBe(prebuilt.Text);
+        editor.Text.ShouldBe("Erster Satz. Zweiter Satz.");
+        viewModel.CommandLog[0].Source.ShouldBe(prebuilt.Label);
+        viewModel.CommandLog[0].Status.ShouldBe(CommandStatus.Succeeded);
+        viewModel.IsCommanding.ShouldBeFalse();
+        viewModel.IsRecording.ShouldBeFalse();
+    }
+
+    [AvaloniaFact]
+    public async Task A_prebuilt_command_pauses_and_resumes_a_recording()
+    {
+        var viewModel = CreateViewModel();
+        await viewModel.ToggleRecordingCommand.ExecuteAsync(null);
+        var firstEngine = engines.Last!;
+
+        await viewModel.RunPrebuiltCommand.ExecuteAsync(viewModel.PrebuiltCommands[0]);
+        await PumpAsync();
+
+        firstEngine.Stopped.ShouldBeTrue();
+        viewModel.IsRecording.ShouldBeTrue();
+        engines.Last.ShouldNotBe(firstEngine);
+    }
+
+    [AvaloniaFact]
+    public async Task A_prebuilt_command_can_be_reverted_like_a_spoken_one()
+    {
+        var viewModel = CreateViewModel();
+        editor.Text = "Original.";
+        claude.FileContentAfterRun = "Umgeschrieben.";
+
+        await viewModel.RunPrebuiltCommand.ExecuteAsync(viewModel.PrebuiltCommands[0]);
+        await PumpAsync();
+        editor.Text.ShouldBe("Umgeschrieben.");
+
+        viewModel.RevertLastCommandCommand.Execute(null);
+
+        editor.Text.ShouldBe("Original.");
+        viewModel.CommandLog[0].Status.ShouldBe(CommandStatus.Reverted);
+    }
+
+    [AvaloniaFact]
+    public async Task A_prebuilt_command_is_refused_while_another_command_runs()
+    {
+        var viewModel = CreateViewModel();
+        hotkeys.PressCommandKey();
+        await PumpAsync();
+
+        // The hold is still down, so the session is Commanding and the buttons must not fire.
+        await viewModel.RunPrebuiltCommand.ExecuteAsync(viewModel.PrebuiltCommands[0]);
+        await PumpAsync();
+
+        viewModel.CommandLog.Count.ShouldBe(1);
+        claude.Calls.ShouldBeEmpty();
+    }
+
+    [AvaloniaFact]
+    public void Prebuilt_commands_come_from_the_config()
+    {
+        var viewModel = CreateViewModel();
+
+        viewModel.HasPrebuiltCommands.ShouldBeTrue();
+        viewModel.PrebuiltCommands[0].Label.ShouldBe("Grammatik");
+        viewModel.PrebuiltCommands[0].Text.ShouldContain("Grammatik");
+    }
+
     public void Dispose()
     {
         // The WAV file stays open for the whole session, so the view model has to go first:

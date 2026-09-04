@@ -101,6 +101,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     public ObservableCollection<CommandLogItem> CommandLog { get; } = [];
 
+    /// <summary>One button per entry in the config, rebuilt whenever the config is reloaded.</summary>
+    public ObservableCollection<PrebuiltCommand> PrebuiltCommands { get; } = [];
+
+    public bool HasPrebuiltCommands => PrebuiltCommands.Count > 0;
+
     public IReadOnlyList<SttMode> SttModes { get; } = [SttMode.Realtime, SttMode.Batch];
 
     [ObservableProperty]
@@ -154,6 +159,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         DocumentPath = document.MarkdownPath;
 
         RefreshDevices();
+        RefreshPrebuiltCommands();
         ApplyHotkeys();
         RefreshState();
 
@@ -382,16 +388,14 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     // ---------------------------------------------------------------- channel 2
 
-    private async Task BeginCommandAsync()
+    /// <summary>
+    /// What both command sources share before there is any command text: pause channel 1, take
+    /// the state machine into Commanding, flush the buffer and open a log entry.
+    /// </summary>
+    private async Task<CommandLogItem?> PrepareCommandAsync()
     {
         if (!machine.CanStartCommand || document is null || activeCommand is not null)
-            return;
-
-        if (SelectedDevice is null)
-        {
-            Warn("Pick a microphone first.");
-            return;
-        }
+            return null;
 
         if (machine.State == SessionState.Recording)
         {
@@ -408,6 +412,23 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         activeCommand = new CommandLogItem();
         CommandLog.Insert(0, activeCommand);
+        return activeCommand;
+    }
+
+    private async Task BeginCommandAsync()
+    {
+        if (!machine.CanStartCommand || document is null || activeCommand is not null)
+            return;
+
+        // Only a spoken command needs a microphone. A prebuilt one runs without one.
+        if (SelectedDevice is null)
+        {
+            Warn("Pick a microphone first.");
+            return;
+        }
+
+        if (await PrepareCommandAsync() is null)
+            return;
 
         commandClip = new MemoryStream();
         capturingCommandClip = true;
@@ -466,6 +487,19 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             FailCommand("Command was empty.");
             return;
         }
+
+        await RunCommandAsync(entry, commandText);
+    }
+
+    /// <summary>
+    /// The other half both sources share: snapshot, hand the text to <c>claude -p</c>, reload the
+    /// file it edited. A prebuilt command differs from a spoken one only in where the text came
+    /// from, so everything after that point is identical by construction.
+    /// </summary>
+    private async Task RunCommandAsync(CommandLogItem entry, string commandText)
+    {
+        if (document is null)
+            return;
 
         entry.CommandText = commandText;
         entry.Engine = config.Claude.Describe();
@@ -544,6 +578,20 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 RefreshState();
             }
         }
+    }
+
+    [RelayCommand]
+    private async Task RunPrebuiltAsync(PrebuiltCommand? prebuilt)
+    {
+        if (prebuilt is null || string.IsNullOrWhiteSpace(prebuilt.Text))
+            return;
+
+        var entry = await PrepareCommandAsync();
+        if (entry is null)
+            return;
+
+        entry.Source = prebuilt.Label;
+        await RunCommandAsync(entry, prebuilt.Text.Trim());
     }
 
     [RelayCommand]
@@ -626,6 +674,16 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    private void RefreshPrebuiltCommands()
+    {
+        PrebuiltCommands.Clear();
+        foreach (var prebuilt in config.PrebuiltCommands)
+            if (!string.IsNullOrWhiteSpace(prebuilt.Label) && !string.IsNullOrWhiteSpace(prebuilt.Text))
+                PrebuiltCommands.Add(prebuilt);
+
+        OnPropertyChanged(nameof(HasPrebuiltCommands));
+    }
+
     [RelayCommand]
     private void ReloadConfig()
     {
@@ -638,6 +696,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         ApplyHotkeys();
         RefreshDevices();
+        RefreshPrebuiltCommands();
         Inform("Config reloaded.");
     }
 

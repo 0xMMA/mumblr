@@ -26,6 +26,10 @@ public sealed partial class CommandLogItem : ObservableObject
     [ObservableProperty]
     private string engine = string.Empty;
 
+    /// <summary>Empty for a spoken command, the button's label for a prebuilt one.</summary>
+    [ObservableProperty]
+    private string source = string.Empty;
+
     public DateTimeOffset StartedAt { get; } = DateTimeOffset.Now;
 
     public string Time => StartedAt.ToString("HH:mm:ss");
