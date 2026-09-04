@@ -103,6 +103,11 @@ Everything else lives in `%APPDATA%\mumblr\config.json` (the **Config** button o
 | `hotkeys` | `toggleRecording`, `copy`, `revertCommand`, `commandHoldKey` |
 | `claude` | `model`, `effort`, `headerPrompt`, allowed/disallowed tools, timeout |
 | `stt` | Model ids, `noVerbatim`, `languageCode`, base URL, VAD silence threshold, `keytermsEncoding` |
+| `prebuiltCommands` | `label` and `text` per button. The label is UI, so English; the text is the prompt and stays in the language of your dictation. |
+
+Two settings are deliberately not in the file. `ELEVENLABS_API_KEY` (or `XI_API_KEY`) carries the
+transcription key, and `MUMBLR_GITHUB_TOKEN` lets the updater read the release feed of a private
+repository. Both come from the environment only, never from config and never from the repo.
 
 Default hotkeys: `Ctrl+Alt+Space` record, hold `Ctrl+Alt+D` for a command, `Ctrl+Alt+C` copy,
 `Ctrl+Alt+Z` revert. They work while your IDE or terminal has focus.
@@ -111,8 +116,11 @@ Default hotkeys: `Ctrl+Alt+Space` record, hold `Ctrl+Alt+D` for a command, `Ctrl
 
 Audio is stored by ElevenLabs on standard tiers, not just processed. Accepted risk - so do not
 dictate anything that could not go into an external prompt: no credentials, no customer names, no
-ticket internals. LLM processing happens only through the locally installed Claude. ElevenLabs STT is
-the single external service and there is no telemetry.
+ticket internals. LLM processing happens only through the locally installed Claude.
+
+Two hosts are contacted, and no others. ElevenLabs receives the audio. GitHub is asked for the
+release feed at startup and when you click the version button - that request carries no
+dictation, only a version check. There is no telemetry.
 
 ## Building
 

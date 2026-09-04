@@ -30,8 +30,7 @@
                 <Button Grid.Column="1"
                         Name="CommandButton"
                         Content="Hold to command"
-                        ToolTip.Tip="Hold, speak an edit, release. claude -p applies it to the file."
-                        IsEnabled="{Binding !IsCommanding}" />
+                        ToolTip.Tip="Hold, speak an edit, release. claude -p applies it to the file." />
 
                 <Border Grid.Column="2" Classes="badge"
                         Classes.live="{Binding IsRecording}"
@@ -104,7 +103,7 @@
                     <TextBlock Classes="label" Text="{Binding HotkeyHint}" VerticalAlignment="Center" />
                     <Button Content="{Binding VersionButtonText}"
                             Command="{Binding UseVersionButtonCommand}"
-                            ToolTip.Tip="Check for updates"
+                            ToolTip.Tip="{Binding VersionButtonTooltip}"
                             FontSize="11" Padding="8,2" />
                     <Button Content="&lt;/&gt;"
                             Command="{Binding OpenProjectPageCommand}"

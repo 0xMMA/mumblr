@@ -5,14 +5,30 @@ Ultra specific voice recorder for development work: talk, get markdown, hand it 
 **Portable:** download `mumblr-<version>-win-Portable.zip`, unzip anywhere, put the folder on your `PATH`,
 then run `mumblr .` in the repo you are working in.
 
-**Installer:** `mumblr-<version>-win-Setup.exe` installs per user and updates itself.
+**Installer:** `mumblr-<version>-win-Setup.exe` installs per user. In-app updates need a release
+feed the app can read - see the repository if the version button reports that it could not reach
+one.
 
 ### Fixed in 0.1.4
 
+- **A key press on the command key while another command was running derailed it.** The release
+  ended whatever command happened to be active - not the one it started - marking it failed,
+  unlocking the editor and resuming dictation underneath a claude call that was still writing to
+  the file. A second one could start a second transcription backend on top of the first.
+- **A hold shorter than the pause it triggers is no longer swallowed.** Stopping the realtime
+  backend takes up to five seconds; a quick press and release fell entirely inside that window and
+  left the session stuck with the microphone running.
+- **Copy is refused while claude is editing the file.** It flushed the buffer straight over the
+  edit in progress.
 - The prebuilt command button is called **Grammar**, not "Grammatik". The window is English; the
   command it sends is still German, because the text it edits is. A `config.json` written by an
   earlier version keeps the old label - rename it there, or delete the entry and let it be
   recreated.
+- The update button says it will restart, and refuses to while a command is running.
+- The command log keeps the effort next to the model, and the batch backend can report an error
+  state at all.
+- Closing the window during a recording no longer leaves a websocket open, and running the tests
+  no longer creates a folder in your home directory.
 
 ### Fixed in 0.1.3
 

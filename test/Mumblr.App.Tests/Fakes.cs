@@ -219,19 +219,29 @@ public sealed class FakeClaudeRunner : IClaudeCommandRunner
     public List<(string Command, string Path)> Calls { get; } = [];
     public Func<string, string, CommandResult>? Behaviour { get; set; }
 
+    /// <summary>For holding a command open while something else is attempted against the UI.</summary>
+    public Func<string, string, Task<CommandResult>>? AsyncBehaviour { get; set; }
+
     /// <summary>What the fake writes into the file, standing in for Claude's edit.</summary>
     public string? FileContentAfterRun { get; set; }
 
-    public Task<CommandResult> RunAsync(string commandText, string absoluteFilePath, CancellationToken cancellationToken = default)
+    public async Task<CommandResult> RunAsync(string commandText, string absoluteFilePath, CancellationToken cancellationToken = default)
     {
         Calls.Add((commandText, absoluteFilePath));
+
+        if (AsyncBehaviour is not null)
+        {
+            var held = await AsyncBehaviour(commandText, absoluteFilePath);
+            if (FileContentAfterRun is not null)
+                File.WriteAllText(absoluteFilePath, FileContentAfterRun);
+
+            return held;
+        }
 
         if (FileContentAfterRun is not null)
             File.WriteAllText(absoluteFilePath, FileContentAfterRun);
 
-        var result = Behaviour?.Invoke(commandText, absoluteFilePath)
-                     ?? new CommandResult(true, "Removed the last sentence.", "{}", TimeSpan.FromSeconds(9));
-
-        return Task.FromResult(result);
+        return Behaviour?.Invoke(commandText, absoluteFilePath)
+               ?? new CommandResult(true, "Removed the last sentence.", "{}", TimeSpan.FromSeconds(9));
     }
 }

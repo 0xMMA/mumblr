@@ -680,7 +680,7 @@ public sealed class MainViewModelTests : IDisposable
         await viewModel.RunPrebuiltCommand.ExecuteAsync(viewModel.PrebuiltCommands[0]);
         await PumpAsync();
 
-        viewModel.CommandLog[0].Engine.ShouldBe("claude-opus-4-6");
+        viewModel.CommandLog[0].Engine.ShouldBe("claude-opus-4-6 / high effort");
     }
 
     [AvaloniaFact]
@@ -708,7 +708,7 @@ public sealed class MainViewModelTests : IDisposable
         await PumpAsync();
 
         viewModel.HasUpdate.ShouldBeTrue();
-        viewModel.VersionButtonText.ShouldBe("update to 0.9.9");
+        viewModel.VersionButtonText.ShouldBe("update to 0.9.9 and restart");
 
         await viewModel.UseVersionButtonCommand.ExecuteAsync(null);
         updates.Applied.ShouldBeTrue();
@@ -754,6 +754,97 @@ public sealed class MainViewModelTests : IDisposable
     {
         MainViewModel.ResolveVersion(null, "1.2.3").ShouldBe("1.2.3");
         MainViewModel.ResolveVersion("  ", null).ShouldBe("dev");
+    }
+
+    [AvaloniaFact]
+    public async Task A_key_up_during_a_prebuilt_command_cannot_end_it()
+    {
+        // EndCommandAsync used to check only whether *a* command was active, never which one, so
+        // the hold key's release failed a prebuilt command's entry, unlocked the editor and
+        // resumed channel 1 underneath it.
+        var viewModel = CreateViewModel();
+        var gate = new TaskCompletionSource<CommandResult>();
+        claude.AsyncBehaviour = (_, _) => gate.Task;
+
+        var running = viewModel.RunPrebuiltCommand.ExecuteAsync(viewModel.PrebuiltCommands[0]);
+        await PumpAsync();
+
+        viewModel.ReleaseCommandButton();
+        await PumpAsync();
+
+        // While claude is still working the entry must still be Running and the editor still
+        // locked. The release used to fail this entry and resume channel 1 underneath it.
+        viewModel.CommandLog[0].Status.ShouldBe(CommandStatus.Running);
+        viewModel.IsCommanding.ShouldBeTrue();
+        editor.IsReadOnly.ShouldBeTrue();
+
+        gate.SetResult(new CommandResult(true, "done", "{}", TimeSpan.FromSeconds(1)));
+        await running;
+        await PumpAsync();
+
+        viewModel.CommandLog.Count.ShouldBe(1);
+        viewModel.CommandLog[0].Status.ShouldBe(CommandStatus.Succeeded);
+        viewModel.IsCommanding.ShouldBeFalse();
+    }
+
+    [AvaloniaFact]
+    public async Task A_hold_shorter_than_the_pause_still_ends_the_command()
+    {
+        // Stopping a realtime backend waits for the last segment; a short hold ends entirely
+        // inside that window, and the release used to be dropped on the floor - leaving the
+        // session in Commanding with the microphone still running.
+        var viewModel = CreateViewModel();
+        await viewModel.ToggleRecordingCommand.ExecuteAsync(null);
+
+        var pause = new TaskCompletionSource();
+        engines.Last!.StopGate = pause;
+
+        viewModel.PressCommandButton();
+        viewModel.ReleaseCommandButton();
+        await PumpAsync();
+
+        pause.SetResult();
+        await PumpAsync();
+
+        viewModel.IsCommanding.ShouldBeFalse();
+    }
+
+    [AvaloniaFact]
+    public async Task Copy_is_refused_while_claude_is_editing_the_file()
+    {
+        var viewModel = CreateViewModel();
+        editor.Text = "Der Buffer.";
+        var gate = new TaskCompletionSource<CommandResult>();
+        claude.AsyncBehaviour = (_, _) => gate.Task;
+
+        var running = viewModel.RunPrebuiltCommand.ExecuteAsync(viewModel.PrebuiltCommands[0]);
+        await PumpAsync();
+
+        await viewModel.CopyCommand.ExecuteAsync(null);
+
+        viewModel.IsWarning.ShouldBeTrue();
+        viewModel.StatusMessage.ShouldContain("Claude is editing");
+        editor.Clipboard.ShouldBeNull();
+
+        gate.SetResult(new CommandResult(true, "done", "{}", TimeSpan.FromSeconds(1)));
+        await running;
+        await PumpAsync();
+    }
+
+    [AvaloniaFact]
+    public async Task The_batch_backend_can_report_an_error_state()
+    {
+        var viewModel = CreateViewModel();
+        viewModel.SelectedSttMode = SttMode.Batch;
+        await viewModel.ToggleRecordingCommand.ExecuteAsync(null);
+        engines.Last!.FailureOnStop = new HttpRequestException("400 rejected");
+
+        await viewModel.ToggleRecordingCommand.ExecuteAsync(null);
+        await PumpAsync();
+
+        // Batch raises its failures only out of StopAsync, so this state was unreachable while
+        // the status was cleared before that await.
+        viewModel.EngineStatus.ShouldBe("error");
     }
 
     public void Dispose()

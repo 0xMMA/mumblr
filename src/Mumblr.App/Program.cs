@@ -83,15 +83,18 @@ internal static class Program
         }
     }
 
+    /// <summary>
+    /// Resolving a path creates nothing: DictationDocument.Create makes the directory when it
+    /// writes, and a resolve that touched the filesystem meant `dotnet test` left a folder in the
+    /// user's home - and that an access error crashed before there was a window to report it in.
+    /// </summary>
     private static string FallbackDirectory()
     {
         var documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-        var fallback = string.IsNullOrWhiteSpace(documents)
+
+        return string.IsNullOrWhiteSpace(documents)
             ? Path.Combine(Path.GetTempPath(), "mumblr")
             : Path.Combine(documents, "mumblr");
-
-        Directory.CreateDirectory(fallback);
-        return fallback;
     }
 
     // Avalonia configuration, don't remove; also used by visual designer.

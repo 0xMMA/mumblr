@@ -44,6 +44,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private readonly IUpdateService updates;
     private readonly ConcurrentQueue<string> pendingSegments = new();
     private readonly object wavGate = new();
+    private readonly object clipGate = new();
 
     private MumblrConfig config;
     private TextPostProcessor postProcessor;
@@ -58,6 +59,20 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     /// <summary>Guards the window inside PrepareCommandAsync where pausing channel 1 is awaited.</summary>
     private bool commandStarting;
+
+    /// <summary>
+    /// The entry the spoken path owns. EndCommandAsync ends this one or nothing: a key-up that
+    /// arrives while a prebuilt command runs used to fail that command's entry, unlock the editor
+    /// and resume channel 1 underneath it.
+    /// </summary>
+    private CommandLogItem? spokenCommand;
+
+    /// <summary>
+    /// A key-up during the pause window - stopping a realtime backend waits up to five seconds -
+    /// arrives before there is anything to end. Latched here so the release is not simply lost,
+    /// which would leave the session stuck in Commanding with the microphone still running.
+    /// </summary>
+    private bool commandReleasedEarly;
     private bool capturingCommandClip;
     private int insertOffset;
     private bool suppressConfigSave = true;
@@ -192,7 +207,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     public string SttStatusText => $"{SelectedSttMode} - {EngineStatus}";
 
-    public string VersionButtonText => HasUpdate ? $"update to {UpdateVersion}" : $"v{Version}";
+    public string VersionButtonText => HasUpdate ? $"update to {UpdateVersion} and restart" : $"v{Version}";
+
+    public string VersionButtonTooltip => HasUpdate
+        ? $"Install {UpdateVersion} and restart mumblr"
+        : "Check for updates";
 
     public bool HasPreview => PreviewText.Length > 0;
 
@@ -239,6 +258,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     {
         OnPropertyChanged(nameof(HasUpdate));
         OnPropertyChanged(nameof(VersionButtonText));
+        OnPropertyChanged(nameof(VersionButtonTooltip));
     }
 
     partial void OnHasApiKeyChanged(bool value) => OnPropertyChanged(nameof(ApiStatusText));
@@ -251,6 +271,13 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     {
         if (HasUpdate)
         {
+            // Restarting on top of a running command would abandon claude mid-edit.
+            if (machine.State == SessionState.Commanding)
+            {
+                Warn("Claude is still working - wait before updating.");
+                return;
+            }
+
             InstallUpdate();
             return;
         }
@@ -296,7 +323,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         updates.ApplyAndRestart();
     }
 
-    /// <summary>Hold-to-talk from the UI, for when the global hook is not an option.</summary>
+    /// <summary>
+    /// Hold-to-talk from the UI, for when the global hook is not an option. The button is never
+    /// disabled: a control that switches to disabled on its own press may never raise the
+    /// matching release, which would strand the session in Commanding. The press is refused here
+    /// instead, where refusing costs nothing.
+    /// </summary>
     public void PressCommandButton() => _ = BeginCommandAsync();
 
     public void ReleaseCommandButton() => _ = EndCommandAsync();
@@ -407,14 +439,17 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             return;
 
         engine = null;
-        EngineStatus = "idle";
 
         try
         {
             await current.StopAsync();
+            EngineStatus = "idle";
         }
         catch (Exception ex)
         {
+            // Batch raises its failures here and nowhere else, so clearing the status before this
+            // await meant the batch backend could never show one.
+            EngineStatus = "error";
             FailRecording($"Transcription failed: {ex.Message}");
         }
         finally
@@ -430,7 +465,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     {
         if (capturingCommandClip)
         {
-            commandClip?.Write(pcm.Span);
+            // Same gate discipline as the WAV writer below: the capture thread writes here while
+            // the UI thread reads the clip out and disposes it.
+            lock (clipGate)
+                commandClip?.Write(pcm.Span);
+
             return;
         }
 
@@ -469,8 +508,6 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     private void OnEngineFailed(Exception ex) => Dispatcher.UIThread.Post(() =>
     {
-        // A failure posted from a backend that has since been stopped must not put the bar back
-        // into "error" after the session is idle.
         if (engine is not null)
             EngineStatus = "error";
 
@@ -579,9 +616,13 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
-        if (await PrepareCommandAsync() is null)
+        commandReleasedEarly = false;
+
+        var entry = await PrepareCommandAsync();
+        if (entry is null)
             return;
 
+        spokenCommand = entry;
         commandClip = new MemoryStream();
         capturingCommandClip = true;
 
@@ -593,21 +634,43 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         {
             capturingCommandClip = false;
             FailCommand($"Microphone unavailable: {ex.Message}");
+            return;
+        }
+
+        // The hold ended while channel 1 was still being paused, so the release had nothing to
+        // act on yet. Honour it now rather than leaving the session in Commanding.
+        if (commandReleasedEarly)
+        {
+            commandReleasedEarly = false;
+            await EndCommandAsync();
         }
     }
 
     private async Task EndCommandAsync()
     {
-        if (activeCommand is null || document is null)
+        if (commandStarting)
+        {
+            // The hold ended before the command finished starting; PrepareCommandAsync hands over
+            // as soon as it has an entry.
+            commandReleasedEarly = true;
+            return;
+        }
+
+        if (spokenCommand is null || activeCommand is null || document is null)
             return;
 
         var entry = activeCommand;
+        spokenCommand = null;
         capturingCommandClip = false;
         capture.Stop();
         Level = 0;
 
-        var clip = commandClip;
-        commandClip = null;
+        MemoryStream? clip;
+        lock (clipGate)
+        {
+            clip = commandClip;
+            commandClip = null;
+        }
 
         if (clip is null || clip.Length == 0)
         {
@@ -630,7 +693,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
         finally
         {
-            clip.Dispose();
+            lock (clipGate)
+                clip.Dispose();
         }
 
         commandText = postProcessor.Apply(commandText).Trim();
@@ -680,7 +744,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         entry.Duration = $"{result.Duration.TotalSeconds:0.0}s";
         entry.Response = result.Summary;
-        entry.Engine = result.Model is { Length: > 0 } ? result.Model : config.Claude.Describe();
+        entry.Engine = result.Model is { Length: > 0 }
+            ? $"{result.Model} / {config.Claude.ResolveEffort()} effort"
+            : config.Claude.Describe();
         entry.Status = result.Success ? CommandStatus.Succeeded : CommandStatus.Failed;
 
         if (result.Success)
@@ -701,6 +767,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
 
         activeCommand = null;
+        spokenCommand = null;
 
         if (result.Success)
         {
@@ -727,6 +794,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
 
         activeCommand = null;
+        spokenCommand = null;
 
         // The warning goes up after the resume, for the same reason.
         _ = FinishCommandAsync().ContinueWith(
@@ -738,7 +806,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     private async Task FinishCommandAsync()
     {
-        machine.TryFinishCommand();
+        // A refused transition means someone else already finished this command. Resuming again
+        // would start a second engine while the first one is still live.
+        if (!machine.TryFinishCommand())
+            return;
+
         RefreshState();
 
         if (machine.State == SessionState.Recording)
@@ -780,6 +852,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
 
         entry.Source = prebuilt.Label;
+        spokenCommand = null;
         await RunCommandAsync(entry, prebuilt.Text.Trim());
     }
 
@@ -810,7 +883,18 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     // ---------------------------------------------------------------- output
 
     [RelayCommand]
-    private async Task CopyAsync() => await CopyToClipboardAsync(announce: true);
+    private async Task CopyAsync()
+    {
+        // Copy was the one control left live during Commanding, and it flushes: the buffer would
+        // have been written straight over the edit claude was making to the same file.
+        if (machine.State == SessionState.Commanding)
+        {
+            Warn("Claude is editing the file - wait for the command to finish.");
+            return;
+        }
+
+        await CopyToClipboardAsync(announce: true);
+    }
 
     private async Task CopyToClipboardAsync(bool announce)
     {
@@ -886,7 +970,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         ApplyHotkeys();
         RefreshDevices();
         RefreshPrebuiltCommands();
-        Inform("Config reloaded.");
+
+        // RefreshDevices may have warned that the configured microphone is gone; that outranks
+        // the news that the config was read.
+        if (!IsWarning)
+            Inform("Config reloaded.");
     }
 
     partial void OnSelectedDeviceChanged(AudioDeviceInfo? value)
@@ -974,6 +1062,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         try
         {
             capture.Stop();
+            SafeStopEngineAsync().GetAwaiter().GetResult();
             Flush();
         }
         catch (Exception)
@@ -995,7 +1084,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             wavWriter = null;
         }
 
-        commandClip?.Dispose();
+        lock (clipGate)
+        {
+            commandClip?.Dispose();
+            commandClip = null;
+        }
+
         http.Dispose();
     }
 
