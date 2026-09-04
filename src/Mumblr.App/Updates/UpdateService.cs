@@ -11,11 +11,14 @@ namespace Mumblr.App.Updates;
 /// </summary>
 public sealed class UpdateService
 {
+    /// <summary>Where releases come from, and where the status bar's link points.</summary>
+    public const string ProjectUrl = "https://github.com/0xMMA/mumblr";
+
     private readonly string repositoryUrl;
     private UpdateManager? manager;
     private UpdateInfo? pending;
 
-    public UpdateService(string repositoryUrl = "https://github.com/0xMMA/mumblr") =>
+    public UpdateService(string repositoryUrl = ProjectUrl) =>
         this.repositoryUrl = repositoryUrl;
 
     /// <summary>Null until an update was found and downloaded.</summary>

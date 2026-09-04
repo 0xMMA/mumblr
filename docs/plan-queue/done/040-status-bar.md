@@ -41,3 +41,18 @@ turn that class of bug into something you see instead of something you deduce.
 - A settings window. Config stays a JSON file with a reload button.
 - Any live API health probe or quota display — that is a request to ElevenLabs mumblr has no
   reason to make.
+
+## Log
+- The bar now carries microphone, STT mode plus backend state, character count and an API-key
+  indicator on the left, the message in the middle, and hotkey hint, version and a GitHub link on
+  the right. The separate update button folded into the version button: it reads `v0.1.0` and
+  checks on click, and turns into `update to <version>` once there is something to install.
+- `EngineStatus` is a fact, not a guess. Realtime returns from `StartAsync` only once the websocket
+  is up, so "connected" means connected; batch holds audio locally until stop and says "buffering"
+  instead of claiming a connection it does not have. A failure sets "error" and stays there until
+  the next start.
+- The API indicator is presence only - green or red, never the value. mumblr reads the key from the
+  environment and the bar must not become the first place it is displayed.
+- Adding a status write is adding a chance to erase a warning: `Initialize` and `StopRecordingAsync`
+  both had that bug. Nothing added here writes over `StatusMessage`; the new facts are their own
+  properties, so the warning path is untouched and its test still passes.

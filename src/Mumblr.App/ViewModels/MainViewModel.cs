@@ -144,7 +144,30 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private string updateVersion = string.Empty;
 
+    /// <summary>What channel 1's backend is doing right now, for the status bar.</summary>
+    [ObservableProperty]
+    private string engineStatus = "idle";
+
+    [ObservableProperty]
+    private int characterCount;
+
+    [ObservableProperty]
+    private bool hasApiKey;
+
     public bool HasUpdate => UpdateVersion.Length > 0;
+
+    /// <summary>The running build, so a bug report can name the version it came from.</summary>
+    public string Version { get; } =
+        (System.Reflection.Assembly.GetEntryAssembly()?.GetName().Version?.ToString(3)) ?? "dev";
+
+    /// <summary>Presence only. mumblr never reads the key from config, and never displays it.</summary>
+    public string ApiStatusText => HasApiKey ? "API key" : "no API key";
+
+    public string MicrophoneLabel => SelectedDevice?.Name ?? "no microphone";
+
+    public string SttStatusText => $"{SelectedSttMode} - {EngineStatus}";
+
+    public string VersionButtonText => HasUpdate ? $"update to {UpdateVersion}" : $"v{Version}";
 
     public bool HasPreview => PreviewText.Length > 0;
 
@@ -163,7 +186,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         ApplyHotkeys();
         RefreshState();
 
-        if (ApiKeyProvider.TryGet() is null)
+        HasApiKey = ApiKeyProvider.TryGet() is not null;
+        UpdateCounters();
+
+        if (!HasApiKey)
             Warn($"No API key. Set {ApiKeyProvider.PrimaryVariable} (or {ApiKeyProvider.FallbackVariable}) and restart.");
         else if (!IsWarning)
             // A device warning from RefreshDevices matters more than the file name, which the
@@ -182,7 +208,43 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             UpdateVersion = version;
     }
 
-    partial void OnUpdateVersionChanged(string value) => OnPropertyChanged(nameof(HasUpdate));
+    partial void OnUpdateVersionChanged(string value)
+    {
+        OnPropertyChanged(nameof(HasUpdate));
+        OnPropertyChanged(nameof(VersionButtonText));
+    }
+
+    partial void OnHasApiKeyChanged(bool value) => OnPropertyChanged(nameof(ApiStatusText));
+
+    partial void OnEngineStatusChanged(string value) => OnPropertyChanged(nameof(SttStatusText));
+
+    /// <summary>The version button is the update button once there is something to install.</summary>
+    [RelayCommand]
+    private async Task UseVersionButtonAsync()
+    {
+        if (HasUpdate)
+        {
+            InstallUpdate();
+            return;
+        }
+
+        Inform("Checking for updates...");
+        await CheckForUpdatesAsync();
+        Inform(HasUpdate ? $"Update {UpdateVersion} available." : $"v{Version} is the latest build.");
+    }
+
+    [RelayCommand]
+    private void OpenProjectPage()
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo(UpdateService.ProjectUrl) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            Warn($"Could not open the project page: {ex.Message}");
+        }
+    }
 
     [RelayCommand]
     private void InstallUpdate()
@@ -285,7 +347,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         engine.PartialTranscript += OnPartialTranscript;
         engine.Failed += OnEngineFailed;
 
+        EngineStatus = "connecting";
         await engine.StartAsync(options);
+
+        // Realtime returns from StartAsync once the websocket is up, so "connected" is a fact
+        // rather than a guess. Batch holds the audio locally until stop, and says so.
+        EngineStatus = SelectedSttMode == SttMode.Realtime ? "connected" : "buffering";
     }
 
     private async Task SafeStopEngineAsync()
@@ -295,6 +362,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             return;
 
         engine = null;
+        EngineStatus = "idle";
 
         try
         {
@@ -354,7 +422,14 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             OnPropertyChanged(nameof(HasPreview));
         });
 
-    private void OnEngineFailed(Exception ex) => Dispatcher.UIThread.Post(() => Warn(ex.Message));
+    private void OnEngineFailed(Exception ex) => Dispatcher.UIThread.Post(() =>
+    {
+        EngineStatus = "error";
+        Warn(ex.Message);
+    });
+
+    /// <summary>Cheap facts for the status bar; the buffer is the only source that can change.</summary>
+    private void UpdateCounters() => CharacterCount = editor.Text.Length;
 
     private void OnLevelChanged(float rms) =>
         Dispatcher.UIThread.Post(() => Level = Math.Clamp(rms * 4.0, 0, 1));
@@ -381,6 +456,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         PreviewText = string.Empty;
         OnPropertyChanged(nameof(HasPreview));
+        UpdateCounters();
     }
 
     private static bool NeedsSeparator(string text, int offset) =>
@@ -532,6 +608,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             var reloaded = document.Read();
             editor.Text = reloaded;
             insertOffset = reloaded.Length;
+            UpdateCounters();
         }
 
         activeCommand = null;
@@ -702,6 +779,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     partial void OnSelectedDeviceChanged(AudioDeviceInfo? value)
     {
+        OnPropertyChanged(nameof(MicrophoneLabel));
+
         if (suppressConfigSave || value is null)
             return;
 
@@ -712,6 +791,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     partial void OnSelectedSttModeChanged(SttMode value)
     {
+        OnPropertyChanged(nameof(SttStatusText));
+
         if (suppressConfigSave)
             return;
 

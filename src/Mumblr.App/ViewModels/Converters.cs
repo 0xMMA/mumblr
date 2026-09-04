@@ -13,4 +13,10 @@ public static class Converters
         isWarning => isWarning
             ? new SolidColorBrush(Color.FromRgb(0xFF, 0x6B, 0x6B))
             : new SolidColorBrush(Color.FromRgb(0x8A, 0x94, 0xA2)));
+
+    /// <summary>Green when a key is present, red when it is not. The key itself is never shown.</summary>
+    public static readonly IValueConverter ApiBrush = new FuncValueConverter<bool, IBrush>(
+        hasKey => hasKey
+            ? new SolidColorBrush(Color.FromRgb(0x5A, 0xD1, 0x8B))
+            : new SolidColorBrush(Color.FromRgb(0xFF, 0x6B, 0x6B)));
 }

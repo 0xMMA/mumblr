@@ -83,17 +83,36 @@
 
         <!-- status bar -->
         <Border DockPanel.Dock="Bottom" Classes="bar" BorderThickness="0,1,0,0" Padding="12,6">
-            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="16">
-                <TextBlock Grid.Column="0"
+            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="16">
+                <!-- The facts that answer "is this thing working" without reading a message. -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="14">
+                    <TextBlock Classes="label" Text="{Binding MicrophoneLabel}"
+                               MaxWidth="180" TextTrimming="CharacterEllipsis"
+                               ToolTip.Tip="{Binding MicrophoneLabel}" />
+                    <TextBlock Classes="label" Text="{Binding SttStatusText}" />
+                    <TextBlock Classes="label" Text="{Binding CharacterCount, StringFormat='{}{0} chars'}" />
+                    <TextBlock Classes="label" Text="{Binding ApiStatusText}"
+                               ToolTip.Tip="Presence only - mumblr reads the key from the environment and never displays it."
+                               Foreground="{Binding HasApiKey, Converter={x:Static vm:Converters.ApiBrush}}" />
+                </StackPanel>
+
+                <TextBlock Grid.Column="1"
                            Text="{Binding StatusMessage}"
                            TextTrimming="CharacterEllipsis"
                            Foreground="{Binding IsWarning, Converter={x:Static vm:Converters.WarningBrush}}" />
-                <Button Grid.Column="1"
-                        Content="{Binding UpdateVersion, StringFormat='Update to {0} and restart'}"
-                        Command="{Binding InstallUpdateCommand}"
-                        IsVisible="{Binding HasUpdate}"
-                        FontSize="11" Padding="8,2" />
-                <TextBlock Grid.Column="2" Classes="label" Text="{Binding HotkeyHint}" />
+
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+                    <TextBlock Classes="label" Text="{Binding HotkeyHint}" VerticalAlignment="Center" />
+                    <Button Content="{Binding VersionButtonText}"
+                            Command="{Binding UseVersionButtonCommand}"
+                            ToolTip.Tip="Check for updates"
+                            FontSize="11" Padding="8,2" />
+                    <Button Content="&lt;/&gt;"
+                            Command="{Binding OpenProjectPageCommand}"
+                            ToolTip.Tip="Open the project on GitHub"
+                            FontFamily="Consolas,Menlo,monospace"
+                            FontSize="11" Padding="8,2" />
+                </StackPanel>
             </Grid>
         </Border>
 

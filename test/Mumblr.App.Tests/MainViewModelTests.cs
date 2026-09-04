@@ -499,6 +499,72 @@ public sealed class MainViewModelTests : IDisposable
         viewModel.PrebuiltCommands[0].Text.ShouldContain("Grammatik");
     }
 
+    [AvaloniaFact]
+    public void The_status_bar_reports_the_key_the_device_and_the_build()
+    {
+        var viewModel = CreateViewModel();
+
+        viewModel.HasApiKey.ShouldBeTrue();
+        viewModel.ApiStatusText.ShouldBe("API key");
+        viewModel.MicrophoneLabel.ShouldBe("Yeti");
+        viewModel.SttStatusText.ShouldBe("Realtime - idle");
+        viewModel.VersionButtonText.ShouldStartWith("v");
+    }
+
+    [AvaloniaFact]
+    public void A_missing_key_is_reported_without_ever_holding_the_value()
+    {
+        Environment.SetEnvironmentVariable(ApiKeyProvider.PrimaryVariable, null);
+        Environment.SetEnvironmentVariable(ApiKeyProvider.FallbackVariable, null);
+
+        var viewModel = CreateViewModel();
+
+        viewModel.HasApiKey.ShouldBeFalse();
+        viewModel.ApiStatusText.ShouldBe("no API key");
+        viewModel.IsWarning.ShouldBeTrue();
+    }
+
+    [AvaloniaFact]
+    public async Task The_backend_state_follows_the_recording()
+    {
+        var viewModel = CreateViewModel();
+
+        await viewModel.ToggleRecordingCommand.ExecuteAsync(null);
+        viewModel.EngineStatus.ShouldBe("connected");
+
+        engines.Last!.Fail(new InvalidOperationException("rejected"));
+        await PumpAsync();
+        viewModel.EngineStatus.ShouldBe("error");
+
+        await viewModel.ToggleRecordingCommand.ExecuteAsync(null);
+        await PumpAsync();
+        viewModel.EngineStatus.ShouldBe("idle");
+    }
+
+    [AvaloniaFact]
+    public async Task Batch_says_it_is_buffering_rather_than_connected()
+    {
+        var viewModel = CreateViewModel();
+        viewModel.SelectedSttMode = SttMode.Batch;
+
+        await viewModel.ToggleRecordingCommand.ExecuteAsync(null);
+
+        viewModel.SttStatusText.ShouldBe("Batch - buffering");
+    }
+
+    [AvaloniaFact]
+    public async Task The_character_count_follows_the_buffer()
+    {
+        var viewModel = CreateViewModel();
+        await viewModel.ToggleRecordingCommand.ExecuteAsync(null);
+
+        engines.Last!.Commit("Erster Satz.");
+        await PumpAsync();
+
+        viewModel.CharacterCount.ShouldBe(editor.Text.Length);
+        viewModel.CharacterCount.ShouldBeGreaterThan(0);
+    }
+
     public void Dispose()
     {
         // The WAV file stays open for the whole session, so the view model has to go first:
