@@ -1,4 +1,3 @@
-using System.Reflection;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -7,6 +6,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
+using System.Reflection;
 using System.Threading.Tasks;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -41,7 +41,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private readonly IHotkeyService hotkeys;
     private readonly IClaudeCommandRunner claudeRunner;
     private readonly ISttEngineFactory engineFactory;
-    private readonly UpdateService updates = new();
+    private readonly IUpdateService updates;
     private readonly ConcurrentQueue<string> pendingSegments = new();
     private readonly object wavGate = new();
 
@@ -52,6 +52,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private ISttEngine? engine;
     private MemoryStream? commandClip;
     private CommandLogItem? activeCommand;
+
+    /// <summary>Set by the failure paths of the running recording; cleared only when one starts.</summary>
+    private string? recordingFailure;
+
+    /// <summary>Guards the window inside PrepareCommandAsync where pausing channel 1 is awaited.</summary>
+    private bool commandStarting;
     private bool capturingCommandClip;
     private int insertOffset;
     private bool suppressConfigSave = true;
@@ -69,8 +75,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         IAudioCapture capture,
         IHotkeyService hotkeys,
         IClaudeCommandRunner? claudeRunner = null,
-        ISttEngineFactory? engineFactory = null)
+        ISttEngineFactory? engineFactory = null,
+        IUpdateService? updates = null)
     {
+        this.updates = updates ?? new UpdateService();
         this.editor = editor;
         this.configStore = configStore;
         this.deviceEnumerator = deviceEnumerator;
@@ -87,6 +95,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         this.capture.DataAvailable += OnAudioCaptured;
         this.capture.LevelChanged += OnLevelChanged;
         this.capture.Failed += OnCaptureFailed;
+        this.editor.TextChanged += UpdateCounters;
 
         this.hotkeys.Triggered += OnHotkey;
         this.hotkeys.CommandKeyDown += () => Dispatcher.UIThread.Post(() => _ = BeginCommandAsync());
@@ -163,16 +172,14 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     /// assembly version would flatten that to a released-looking 0.1.2. The commit hash after the
     /// "+" is dropped: it belongs in a report, not in a status bar.
     /// </summary>
-    public string Version { get; } = ResolveVersion();
+    public string Version { get; } = ResolveVersion(
+        Assembly.GetEntryAssembly()?.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion,
+        Assembly.GetEntryAssembly()?.GetName().Version?.ToString(3));
 
-    private static string ResolveVersion()
+    internal static string ResolveVersion(string? informational, string? assemblyVersion)
     {
-        var informational = System.Reflection.Assembly.GetEntryAssembly()
-            ?.GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>()
-            ?.InformationalVersion;
-
         if (string.IsNullOrWhiteSpace(informational))
-            return System.Reflection.Assembly.GetEntryAssembly()?.GetName().Version?.ToString(3) ?? "dev";
+            return string.IsNullOrWhiteSpace(assemblyVersion) ? "dev" : assemblyVersion;
 
         var plus = informational.IndexOf('+');
         return plus < 0 ? informational : informational[..plus];
@@ -322,6 +329,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
+        recordingFailure = null;
+
         try
         {
             // The insert marker is taken once, at record start; committed segments go there, not to
@@ -363,11 +372,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         Flush();
         await CopyToClipboardAsync(announce: false);
 
-        // Starting a recording clears the warning flag, so one still set here belongs to this
-        // recording - a rejected request, a dead microphone. The routine stop message must not
-        // wipe it: that is what made a failing transcription look like a silent one.
-        if (IsWarning)
-            StatusMessage += " - stopped, buffer copied to the clipboard.";
+        // IsWarning cannot carry this: Copy, Revert and Reload all call Inform and are reachable
+        // in the middle of a take, so a Ctrl+Alt+C forty seconds after a refused session would
+        // erase the only trace of it. This latch is set by the failure paths of this recording
+        // and cleared when the next one starts, by nothing else.
+        if (recordingFailure is { Length: > 0 })
+            Warn($"{recordingFailure} - stopped, buffer copied to the clipboard.");
         else
             Inform("Stopped - buffer copied to the clipboard.");
     }
@@ -405,7 +415,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
         catch (Exception ex)
         {
-            Warn($"Transcription failed: {ex.Message}");
+            FailRecording($"Transcription failed: {ex.Message}");
         }
         finally
         {
@@ -440,7 +450,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
         catch (Exception ex)
         {
-            Dispatcher.UIThread.Post(() => Warn($"Audio upload failed: {ex.Message}"));
+            Dispatcher.UIThread.Post(() => FailRecording($"Audio upload failed: {ex.Message}"));
         }
     }
 
@@ -459,18 +469,32 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     private void OnEngineFailed(Exception ex) => Dispatcher.UIThread.Post(() =>
     {
-        EngineStatus = "error";
-        Warn(ex.Message);
+        // A failure posted from a backend that has since been stopped must not put the bar back
+        // into "error" after the session is idle.
+        if (engine is not null)
+            EngineStatus = "error";
+
+        FailRecording(ex.Message);
     });
 
     /// <summary>Cheap facts for the status bar; the buffer is the only source that can change.</summary>
     private void UpdateCounters() => CharacterCount = editor.Text.Length;
 
+    /// <summary>
+    /// The failure that belongs to the recording currently running, if any. Cleared when a
+    /// recording starts and by nothing else, so no unrelated status message can lose it.
+    /// </summary>
+    private void FailRecording(string message)
+    {
+        recordingFailure = message;
+        Warn(message);
+    }
+
     private void OnLevelChanged(float rms) =>
         Dispatcher.UIThread.Post(() => Level = Math.Clamp(rms * 4.0, 0, 1));
 
     private void OnCaptureFailed(Exception ex) =>
-        Dispatcher.UIThread.Post(() => Warn($"Microphone stopped: {ex.Message}"));
+        Dispatcher.UIThread.Post(() => FailRecording($"Microphone stopped: {ex.Message}"));
 
     /// <summary>Appends every committed segment at the insert marker, in order.</summary>
     private void DrainSegments()
@@ -505,25 +529,42 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     /// </summary>
     private async Task<CommandLogItem?> PrepareCommandAsync()
     {
-        if (!machine.CanStartCommand || document is null || activeCommand is not null)
+        // Claimed before the await below, not after: stopping a realtime backend waits for the
+        // last segment or five seconds, and the hold key and a prebuilt button are separate
+        // paths. Two of them inside that window would start two claude processes on one file.
+        if (commandStarting || !machine.CanStartCommand || document is null || activeCommand is not null)
             return null;
 
-        if (machine.State == SessionState.Recording)
+        commandStarting = true;
+
+        try
         {
-            // Channel 1 pauses: stop the mic, close the take so its text lands in the file.
-            capture.Stop();
-            await SafeStopEngineAsync();
-            DrainSegments();
+            if (machine.State == SessionState.Recording)
+            {
+                // Channel 1 pauses: stop the mic, close the take so its text lands in the file.
+                capture.Stop();
+                await SafeStopEngineAsync();
+                DrainSegments();
+            }
+
+            Level = 0;
+            PreviewText = string.Empty;
+            OnPropertyChanged(nameof(HasPreview));
+
+            if (!machine.TryStartCommand())
+                return null;
+
+            RefreshState();
+            Flush();
+
+            activeCommand = new CommandLogItem();
+            CommandLog.Insert(0, activeCommand);
+            return activeCommand;
         }
-
-        machine.TryStartCommand();
-        RefreshState();
-
-        Flush();
-
-        activeCommand = new CommandLogItem();
-        CommandLog.Insert(0, activeCommand);
-        return activeCommand;
+        finally
+        {
+            commandStarting = false;
+        }
     }
 
     private async Task BeginCommandAsync()
@@ -610,21 +651,25 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private async Task RunCommandAsync(CommandLogItem entry, string commandText)
     {
         if (document is null)
+        {
+            FailCommand("No dictation file.");
             return;
+        }
 
         entry.CommandText = commandText;
-        entry.Engine = config.Claude.Describe();
+        entry.Engine = config.Claude.Describe();  // replaced below by whatever actually answered
         entry.Status = CommandStatus.Running;
-        StatusMessage = "Claude is working...";
-
-        // Snapshot before the call so the command can be undone.
-        Flush();
-        snapshots.Push(editor.Text, commandText);
-        OnPropertyChanged(nameof(CanRevert));
+        Inform("Claude is working...");
 
         CommandResult result;
         try
         {
+            // Inside the try: a failing Flush or snapshot would otherwise throw out of a
+            // RelayCommand and leave the session in Commanding with a read-only editor.
+            Flush();
+            snapshots.Push(editor.Text, commandText);
+            OnPropertyChanged(nameof(CanRevert));
+
             result = await claudeRunner.RunAsync(commandText, document.MarkdownPath);
         }
         catch (Exception ex)
@@ -635,20 +680,40 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         entry.Duration = $"{result.Duration.TotalSeconds:0.0}s";
         entry.Response = result.Summary;
+        entry.Engine = result.Model is { Length: > 0 } ? result.Model : config.Claude.Describe();
         entry.Status = result.Success ? CommandStatus.Succeeded : CommandStatus.Failed;
 
         if (result.Success)
         {
-            // claude edited the file; the file is now the truth, so reload it into the buffer.
-            var reloaded = document.Read();
-            editor.Text = reloaded;
-            insertOffset = reloaded.Length;
-            UpdateCounters();
+            try
+            {
+                // claude edited the file; the file is now the truth, so reload it into the buffer.
+                var reloaded = document.Read();
+                editor.Text = reloaded;
+                insertOffset = reloaded.Length;
+                UpdateCounters();
+            }
+            catch (Exception ex)
+            {
+                FailCommand($"Could not read the file back: {ex.Message}");
+                return;
+            }
         }
 
         activeCommand = null;
-        await FinishCommandAsync();
-        Inform(result.Success ? result.Summary : $"Command failed: {result.Summary}");
+
+        if (result.Success)
+        {
+            await FinishCommandAsync();
+            Inform(result.Summary);
+        }
+        else
+        {
+            // Order matters: FinishCommandAsync ends a resumed recording with "Recording
+            // resumed.", which would erase the failure if it ran after the warning.
+            await FinishCommandAsync();
+            Warn($"Command failed: {result.Summary}");
+        }
     }
 
     private void FailCommand(string message)
@@ -662,8 +727,13 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
 
         activeCommand = null;
-        Warn(message);
-        _ = FinishCommandAsync();
+
+        // The warning goes up after the resume, for the same reason.
+        _ = FinishCommandAsync().ContinueWith(
+            _ => Warn(message),
+            CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.FromCurrentSynchronizationContext());
     }
 
     private async Task FinishCommandAsync()
@@ -685,7 +755,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             }
             catch (Exception ex)
             {
-                Warn($"Could not resume recording: {ex.Message}");
+                // The engine may already be up - capture.Start is what usually throws here - and
+                // an abandoned one keeps its websocket and its event subscriptions.
+                await SafeStopEngineAsync();
+                capture.Stop();
+                FailRecording($"Could not resume recording: {ex.Message}");
                 machine.TryStopRecording();
                 RefreshState();
             }
@@ -700,7 +774,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         var entry = await PrepareCommandAsync();
         if (entry is null)
+        {
+            Warn("Busy - wait for the running command to finish.");
             return;
+        }
 
         entry.Source = prebuilt.Label;
         await RunCommandAsync(entry, prebuilt.Text.Trim());
@@ -789,7 +866,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private void RefreshPrebuiltCommands()
     {
         PrebuiltCommands.Clear();
-        foreach (var prebuilt in config.PrebuiltCommands)
+        foreach (var prebuilt in config.PrebuiltCommands ?? [])
             if (!string.IsNullOrWhiteSpace(prebuilt.Label) && !string.IsNullOrWhiteSpace(prebuilt.Text))
                 PrebuiltCommands.Add(prebuilt);
 

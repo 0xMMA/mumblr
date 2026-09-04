@@ -1,13 +1,11 @@
 name: release
 
+# A tag is the only way to release. A manual trigger could name a version the binary does not
+# carry - MinVer reads the tags at the checked out commit, not the input - and the mismatch would
+# only be visible after the package was published.
 on:
   push:
     tags: ['v*']
-  workflow_dispatch:
-    inputs:
-      version:
-        description: 'Version to release, without the leading v (e.g. 0.1.0)'
-        required: true
 
 permissions:
   contents: write
@@ -28,11 +26,15 @@ jobs:
       - name: Resolve version
         id: version
         shell: pwsh
+        # The ref name goes through the environment, never into the script text: git allows an
+        # apostrophe in a tag name, and expanding one straight into a quoted PowerShell string is
+        # how that becomes arbitrary code on the runner.
+        env:
+          REF_NAME: ${{ github.ref_name }}
         run: |
-          $version = if ('${{ github.event_name }}' -eq 'workflow_dispatch') {
-            '${{ github.event.inputs.version }}'
-          } else {
-            '${{ github.ref_name }}'.TrimStart('v')
+          $version = $env:REF_NAME -replace '^v', ''
+          if ($version -notmatch '^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$') {
+            throw "Tag '$($env:REF_NAME)' is not a version tag"
           }
           "version=$version" >> $env:GITHUB_OUTPUT
           "tag=v$version" >> $env:GITHUB_OUTPUT
@@ -64,10 +66,14 @@ jobs:
           --releaseNotes RELEASE_NOTES.md
 
       - name: Upload the release
+        shell: pwsh
+        env:
+          # Not on the command line: arguments are readable by every other process on the runner.
+          VPK_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: >
           vpk upload github
           --repoUrl https://github.com/${{ github.repository }}
-          --token ${{ secrets.GITHUB_TOKEN }}
+          --token $env:VPK_TOKEN
           --outputDir releases
           --tag ${{ steps.version.outputs.tag }}
           --releaseName "mumblr ${{ steps.version.outputs.version }}"
@@ -90,12 +96,21 @@ jobs:
           $tag = '${{ steps.version.outputs.tag }}'
           $renamed = 0
 
-          foreach ($line in gh api "repos/${{ github.repository }}/releases/tags/$tag" --jq '.assets[] | "\(.id) \(.name)"') {
+          $assets = gh api "repos/${{ github.repository }}/releases/tags/$tag" --jq '.assets[] | "\(.id) \(.name)"'
+          if ($LASTEXITCODE -ne 0) { throw "Could not read the release assets for $tag" }
+
+          foreach ($line in $assets) {
             $id, $name = $line -split ' ', 2
             if ($name -notmatch '^mumblr-win-(Setup\.exe|Portable\.zip)$') { continue }
 
             $target = $name -replace '^mumblr-win-', "mumblr-$version-win-"
             gh api -X PATCH "repos/${{ github.repository }}/releases/assets/$id" -f name="$target" | Out-Null
+
+            # gh does not throw on a failed call. Counting the attempt instead of the result let a
+            # re-run - where the new upload collides with an already renamed asset - report success
+            # while both renames were refused.
+            if ($LASTEXITCODE -ne 0) { throw "Renaming $name to $target failed" }
+
             Write-Host "$name -> $target"
             $renamed++
           }

@@ -40,8 +40,10 @@ public class LiveElevenLabsTests
     [Fact]
     public async Task The_batch_endpoint_accepts_our_keyterms()
     {
-        if (Key() is not { Length: > 0 } key)
-            return;
+        // Skipped, never silently passed: a green tick for a test that did nothing is exactly the
+        // false confidence this file exists to remove.
+        Assert.SkipUnless(Key() is { Length: > 0 }, $"set {OptIn}=1 to run the live tests");
+        var key = Key()!;
 
         using var http = new HttpClient();
         await using var engine = new ElevenLabsBatchSttEngine(http, () => key);
@@ -53,16 +55,19 @@ public class LiveElevenLabsTests
         };
 
         // A rejected request throws with the status and body, so reaching the assert is the point.
+        // The tone has no speech in it, so the transcript is allowed to be empty - what is being
+        // proven is that ElevenLabs accepted the keyterms mumblr sends.
         var text = await engine.TranscribeAsync(Tone(), options);
 
         text.ShouldNotBeNull();
+        await Should.NotThrowAsync(() => engine.TranscribeAsync(Tone(), options with { Keyterms = [] }));
     }
 
     [Fact]
     public async Task The_realtime_endpoint_starts_a_session_with_our_keyterms()
     {
-        if (Key() is not { Length: > 0 } key)
-            return;
+        Assert.SkipUnless(Key() is { Length: > 0 }, $"set {OptIn}=1 to run the live tests");
+        var key = Key()!;
 
         var options = new SttSessionOptions
         {
@@ -77,10 +82,28 @@ public class LiveElevenLabsTests
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
         await socket.ConnectAsync(uri, cts.Token);
 
-        // The handshake succeeds even for a refused session; the verdict arrives as a message.
-        var buffer = new byte[8192];
-        var received = await socket.ReceiveAsync(buffer, cts.Token);
-        var first = Encoding.UTF8.GetString(buffer, 0, received.Count);
+        // The handshake succeeds even for a refused session; the verdict arrives as a message, and
+        // a rejection can follow session_started rather than replacing it. So read every message
+        // that arrives in the first couple of seconds, not just the first one.
+        var messages = new List<string>();
+        var buffer = new byte[16384];
+        using var listen = CancellationTokenSource.CreateLinkedTokenSource(cts.Token);
+        listen.CancelAfter(TimeSpan.FromSeconds(2));
+
+        try
+        {
+            while (!listen.IsCancellationRequested)
+            {
+                var received = await socket.ReceiveAsync(buffer, listen.Token);
+                messages.Add(Encoding.UTF8.GetString(buffer, 0, received.Count));
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Two seconds of silence after session_started is the expected shape.
+        }
+
+        var first = string.Join("\n", messages);
 
         // No graceful close: a session that never gets audio is dropped by the server, and racing
         // it for a close handshake would fail the test for a reason that is not the subject.
@@ -88,5 +111,9 @@ public class LiveElevenLabsTests
 
         first.ShouldContain("session_started");
         first.ShouldNotContain("invalid_request");
+
+        // The server echoes the accepted configuration back, so this proves the keyterms arrived
+        // as separate terms rather than as one packed value.
+        first.ShouldContain("Vertical Slice");
     }
 }

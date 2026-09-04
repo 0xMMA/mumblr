@@ -8,8 +8,12 @@ internal static class ElevenLabsRequest
     public const string RealtimePath = "/v1/speech-to-text/realtime";
     public const string BatchPath = "/v1/speech-to-text";
 
+    /// <summary>
+    /// Opt in, never opt out: a typo like "reapeated" must fall back to the encoding that works,
+    /// not to the one that made every request fail.
+    /// </summary>
     public static bool UseJsonArray(string encoding) =>
-        !string.Equals(encoding, "repeated", StringComparison.OrdinalIgnoreCase);
+        string.Equals(encoding, "json", StringComparison.OrdinalIgnoreCase);
 
     public static string ToJsonArray(IReadOnlyList<string> keyterms) => JsonSerializer.Serialize(keyterms);
 

@@ -45,6 +45,23 @@ public class RealtimeUriTests
         Uri.UnescapeDataString(uri.Query).ShouldNotContain("[");
     }
 
+    [Theory]
+    [InlineData("repeated")]
+    [InlineData("")]
+    [InlineData("reapeated")]
+    [InlineData("REPEATED")]
+    public void Anything_but_an_explicit_json_opt_in_sends_repeated_parameters(string encoding)
+    {
+        // Fail safe, not fail open: a typo in the config must not silently reintroduce the
+        // encoding that made every single request fail.
+        var options = Options() with { KeytermsEncoding = encoding };
+
+        var uri = ElevenLabsRequest.BuildRealtimeUri(options, ["Aspire", "Shouldly"]);
+
+        uri.Query.ShouldContain("keyterms=Aspire");
+        Uri.UnescapeDataString(uri.Query).ShouldNotContain("[");
+    }
+
     [Fact]
     public void Can_pack_keyterms_into_a_json_array_as_an_escape_hatch()
     {

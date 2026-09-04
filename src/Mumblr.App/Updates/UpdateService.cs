@@ -9,10 +9,30 @@ namespace Mumblr.App.Updates;
 /// Checks the GitHub releases the portable package and the installer both come from. Updates are
 /// never applied behind the user's back - the UI offers a button and restarts on demand.
 /// </summary>
-public sealed class UpdateService
+/// <summary>
+/// The update check behind a seam, so the four outcomes can be tested. Claiming "latest build"
+/// after a check that never happened is the failure this interface exists to keep covered.
+/// </summary>
+public interface IUpdateService
+{
+    string? AvailableVersion { get; }
+
+    Task<UpdateService.UpdateCheck> CheckAsync();
+
+    void ApplyAndRestart();
+}
+
+public sealed class UpdateService : IUpdateService
 {
     /// <summary>Where releases come from, and where the status bar's link points.</summary>
     public const string ProjectUrl = "https://github.com/0xMMA/mumblr";
+
+    /// <summary>
+    /// A private repository serves its releases only to an authenticated client. The token comes
+    /// from the environment for the same reason the ElevenLabs key does: never from config, never
+    /// from the repo. Unset is the normal case once the releases are public.
+    /// </summary>
+    public const string TokenVariable = "MUMBLR_GITHUB_TOKEN";
 
     private readonly string repositoryUrl;
     private UpdateManager? manager;
@@ -64,16 +84,12 @@ public sealed class UpdateService
         {
             // Offline, rate limited, or a private repository answering 404 to an anonymous client.
             // Never block dictating over an update check - but never claim to be up to date either.
+            // The manager caches the token it was built with, so drop it: setting MUMBLR_GITHUB_TOKEN
+            // would otherwise need a restart to take effect.
+            manager = null;
             return UpdateCheck.Failed;
         }
     }
-
-    /// <summary>
-    /// A private repository serves its releases only to an authenticated client. The token comes
-    /// from the environment for the same reason the ElevenLabs key does: never from config, never
-    /// from the repo. Unset is the normal case once the releases are public.
-    /// </summary>
-    public const string TokenVariable = "MUMBLR_GITHUB_TOKEN";
 
     private static string? AccessToken
     {

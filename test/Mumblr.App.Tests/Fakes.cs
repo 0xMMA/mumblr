@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Mumblr.App.Updates;
 using Mumblr.App.ViewModels;
 using Mumblr.Core.Audio;
 using Mumblr.Core.Commands;
@@ -10,17 +11,41 @@ namespace Mumblr.App.Tests;
 
 public sealed class FakeEditorHost : IEditorHost
 {
-    public string Text { get; set; } = string.Empty;
+    public event Action? TextChanged;
+
+    private string text = string.Empty;
+
+    public string Text
+    {
+        get => text;
+        set
+        {
+            if (text == value)
+                return;
+
+            text = value;
+            TextChanged?.Invoke();
+        }
+    }
+
     public int CaretOffset { get; set; }
     public bool IsReadOnly { get; set; }
     public string? Clipboard { get; private set; }
 
     public void Insert(int offset, string text) => Text = Text.Insert(Math.Clamp(offset, 0, Text.Length), text);
 
-    public Task<bool> CopyToClipboardAsync(string text)
+    /// <summary>Stands in for a keystroke: the user editing the buffer, not mumblr writing to it.</summary>
+    public void Type(string appended) => Text += appended;
+
+    /// <summary>
+    /// A real clipboard write goes through the platform and yields. Returning a completed task
+    /// would let a test pass on an ordering the app never actually has.
+    /// </summary>
+    public async Task<bool> CopyToClipboardAsync(string text)
     {
+        await Task.Yield();
         Clipboard = text;
-        return Task.FromResult(true);
+        return true;
     }
 }
 
@@ -115,16 +140,23 @@ public sealed class FakeSttEngine : ISttEngine
         return ValueTask.CompletedTask;
     }
 
-    public Task StopAsync(CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Held open to reproduce the real pause window: stopping the realtime backend waits for the
+    /// last segment, or five seconds. Everything that can start a command is live in there.
+    /// </summary>
+    public TaskCompletionSource? StopGate { get; set; }
+
+    public async Task StopAsync(CancellationToken cancellationToken = default)
     {
+        if (StopGate is not null)
+            await StopGate.Task;
+
         Stopped = true;
         if (FailureOnStop is not null)
             throw FailureOnStop;
 
         if (TextOnStop is { Length: > 0 })
             SegmentCommitted?.Invoke(TextOnStop);
-
-        return Task.CompletedTask;
     }
 
     public void Commit(string text) => SegmentCommitted?.Invoke(text);
@@ -164,6 +196,22 @@ public sealed class FakeSttEngineFactory : ISttEngineFactory
             return Task.FromResult(owner.ClipText);
         }
     }
+}
+
+public sealed class FakeUpdateService : IUpdateService
+{
+    public UpdateService.UpdateCheck Outcome { get; set; } = UpdateService.UpdateCheck.UpToDate;
+    public string? AvailableVersion { get; set; }
+    public bool Applied { get; private set; }
+    public int Checks { get; private set; }
+
+    public Task<UpdateService.UpdateCheck> CheckAsync()
+    {
+        Checks++;
+        return Task.FromResult(Outcome);
+    }
+
+    public void ApplyAndRestart() => Applied = true;
 }
 
 public sealed class FakeClaudeRunner : IClaudeCommandRunner

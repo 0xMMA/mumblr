@@ -1,3 +1,4 @@
+using Mumblr.App.Updates;
 using System.Net.Http;
 using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
@@ -19,6 +20,7 @@ public sealed class MainViewModelTests : IDisposable
     private readonly FakeHotkeyService hotkeys = new();
     private readonly FakeSttEngineFactory engines = new();
     private readonly FakeClaudeRunner claude = new();
+    private readonly FakeUpdateService updates = new();
     private readonly ConfigStore configStore;
     private readonly MumblrConfig config;
     private MainViewModel? viewModel;
@@ -37,7 +39,7 @@ public sealed class MainViewModelTests : IDisposable
 
     private MainViewModel CreateViewModel()
     {
-        viewModel = new MainViewModel(workspace, editor, configStore, devices, capture, hotkeys, claude, engines);
+        viewModel = new MainViewModel(workspace, editor, configStore, devices, capture, hotkeys, claude, engines, updates);
         viewModel.Initialize();
         return viewModel;
     }
@@ -565,11 +567,204 @@ public sealed class MainViewModelTests : IDisposable
         viewModel.CharacterCount.ShouldBeGreaterThan(0);
     }
 
+    [AvaloniaFact]
+    public async Task Copying_mid_recording_does_not_erase_the_failure()
+    {
+        // The bug the review found: Copy, Revert and Reload all call Inform, so IsWarning could
+        // not carry "this recording failed". Ctrl+Alt+C is a documented global hotkey, so the
+        // sequence below is an ordinary Tuesday, not a contrivance.
+        var viewModel = CreateViewModel();
+        await viewModel.ToggleRecordingCommand.ExecuteAsync(null);
+
+        engines.Last!.Fail(new InvalidOperationException("Each keyterm must be at most 20 characters."));
+        await PumpAsync();
+
+        await viewModel.CopyCommand.ExecuteAsync(null);
+        await PumpAsync();
+
+        await viewModel.ToggleRecordingCommand.ExecuteAsync(null);
+        await PumpAsync();
+
+        viewModel.IsWarning.ShouldBeTrue();
+        viewModel.StatusMessage.ShouldContain("20 characters");
+    }
+
+    [AvaloniaFact]
+    public async Task A_failure_from_an_earlier_recording_does_not_haunt_the_next_one()
+    {
+        var viewModel = CreateViewModel();
+        await viewModel.ToggleRecordingCommand.ExecuteAsync(null);
+        engines.Last!.Fail(new InvalidOperationException("rejected"));
+        await PumpAsync();
+        await viewModel.ToggleRecordingCommand.ExecuteAsync(null);
+        await PumpAsync();
+
+        await viewModel.ToggleRecordingCommand.ExecuteAsync(null);
+        await viewModel.ToggleRecordingCommand.ExecuteAsync(null);
+        await PumpAsync();
+
+        viewModel.IsWarning.ShouldBeFalse();
+        viewModel.StatusMessage.ShouldBe("Stopped - buffer copied to the clipboard.");
+    }
+
+    [AvaloniaFact]
+    public async Task A_failing_command_warns_and_survives_the_resume_message()
+    {
+        var viewModel = CreateViewModel();
+        claude.Behaviour = (_, _) => new CommandResult(false, "claude refused", "{}", TimeSpan.FromSeconds(2));
+
+        await viewModel.ToggleRecordingCommand.ExecuteAsync(null);
+        await viewModel.RunPrebuiltCommand.ExecuteAsync(viewModel.PrebuiltCommands[0]);
+        await PumpAsync();
+
+        viewModel.IsWarning.ShouldBeTrue();
+        viewModel.StatusMessage.ShouldContain("claude refused");
+        viewModel.IsRecording.ShouldBeTrue();
+    }
+
+    [AvaloniaFact]
+    public async Task A_second_command_cannot_start_while_the_first_is_being_prepared()
+    {
+        var viewModel = CreateViewModel();
+        await viewModel.ToggleRecordingCommand.ExecuteAsync(null);
+
+        // Hold the pause open, so the second entry point fires inside the window rather than after.
+        var pause = new TaskCompletionSource();
+        engines.Last!.StopGate = pause;
+
+        var first = viewModel.RunPrebuiltCommand.ExecuteAsync(viewModel.PrebuiltCommands[0]);
+        viewModel.PressCommandButton();
+        await PumpAsync();
+
+        pause.SetResult();
+        await first;
+        await PumpAsync();
+
+        claude.Calls.Count.ShouldBe(1);
+        viewModel.CommandLog.Count.ShouldBe(1);
+    }
+
+    [AvaloniaFact]
+    public void The_character_count_follows_typing()
+    {
+        var viewModel = CreateViewModel();
+
+        editor.Type("getippt");
+
+        viewModel.CharacterCount.ShouldBe("getippt".Length);
+    }
+
+    [AvaloniaFact]
+    public async Task The_character_count_follows_a_revert()
+    {
+        var viewModel = CreateViewModel();
+        editor.Text = "Erster Satz. Zweiter Satz.";
+        claude.FileContentAfterRun = "Erster Satz.";
+
+        await viewModel.RunPrebuiltCommand.ExecuteAsync(viewModel.PrebuiltCommands[0]);
+        await PumpAsync();
+        viewModel.CharacterCount.ShouldBe("Erster Satz.".Length);
+
+        viewModel.RevertLastCommandCommand.Execute(null);
+
+        viewModel.CharacterCount.ShouldBe("Erster Satz. Zweiter Satz.".Length);
+    }
+
+    [AvaloniaFact]
+    public async Task The_command_log_names_the_model_that_actually_answered()
+    {
+        var viewModel = CreateViewModel();
+        claude.Behaviour = (_, _) => new CommandResult(true, "done", "{}", TimeSpan.FromSeconds(3), "claude-opus-4-6");
+
+        await viewModel.RunPrebuiltCommand.ExecuteAsync(viewModel.PrebuiltCommands[0]);
+        await PumpAsync();
+
+        viewModel.CommandLog[0].Engine.ShouldBe("claude-opus-4-6");
+    }
+
+    [AvaloniaFact]
+    public async Task A_check_that_could_not_ask_never_claims_to_be_current()
+    {
+        var viewModel = CreateViewModel();
+        updates.Outcome = UpdateService.UpdateCheck.Failed;
+
+        await viewModel.UseVersionButtonCommand.ExecuteAsync(null);
+        await PumpAsync();
+
+        viewModel.IsWarning.ShouldBeTrue();
+        viewModel.StatusMessage.ShouldContain("Could not reach");
+        viewModel.HasUpdate.ShouldBeFalse();
+    }
+
+    [AvaloniaFact]
+    public async Task An_available_update_turns_the_version_button_into_an_install()
+    {
+        var viewModel = CreateViewModel();
+        updates.Outcome = UpdateService.UpdateCheck.Available;
+        updates.AvailableVersion = "0.9.9";
+
+        await viewModel.UseVersionButtonCommand.ExecuteAsync(null);
+        await PumpAsync();
+
+        viewModel.HasUpdate.ShouldBeTrue();
+        viewModel.VersionButtonText.ShouldBe("update to 0.9.9");
+
+        await viewModel.UseVersionButtonCommand.ExecuteAsync(null);
+        updates.Applied.ShouldBeTrue();
+    }
+
+    [AvaloniaFact]
+    public async Task An_unpackaged_build_says_so_instead_of_claiming_to_be_current()
+    {
+        var viewModel = CreateViewModel();
+        updates.Outcome = UpdateService.UpdateCheck.NotInstalled;
+
+        await viewModel.UseVersionButtonCommand.ExecuteAsync(null);
+        await PumpAsync();
+
+        viewModel.StatusMessage.ShouldContain("replacing the folder");
+        viewModel.IsWarning.ShouldBeFalse();
+    }
+
+    [AvaloniaFact]
+    public async Task An_up_to_date_check_says_the_running_version()
+    {
+        var viewModel = CreateViewModel();
+        updates.Outcome = UpdateService.UpdateCheck.UpToDate;
+
+        await viewModel.UseVersionButtonCommand.ExecuteAsync(null);
+        await PumpAsync();
+
+        viewModel.StatusMessage.ShouldBe($"v{viewModel.Version} is the latest build.");
+        viewModel.IsWarning.ShouldBeFalse();
+    }
+
+    [AvaloniaTheory]
+    [InlineData("0.1.2+bebdcd0", "0.1.2")]
+    [InlineData("0.1.3-alpha.0.4+abc123", "0.1.3-alpha.0.4")]
+    [InlineData("0.1.2", "0.1.2")]
+    public void The_commit_hash_is_trimmed_off_the_displayed_version(string informational, string expected)
+    {
+        MainViewModel.ResolveVersion(informational, "9.9.9").ShouldBe(expected);
+    }
+
+    [AvaloniaFact]
+    public void Without_an_informational_version_the_assembly_version_stands_in()
+    {
+        MainViewModel.ResolveVersion(null, "1.2.3").ShouldBe("1.2.3");
+        MainViewModel.ResolveVersion("  ", null).ShouldBe("dev");
+    }
+
     public void Dispose()
     {
         // The WAV file stays open for the whole session, so the view model has to go first:
         // Windows refuses to delete a directory that still holds an open handle.
         viewModel?.Shutdown();
+
+        // One test clears both key variables process-wide; the class constructor only restores the
+        // primary one, and the next class to run would inherit the hole.
+        Environment.SetEnvironmentVariable(ApiKeyProvider.PrimaryVariable, null);
+        Environment.SetEnvironmentVariable(ApiKeyProvider.FallbackVariable, null);
 
         if (Directory.Exists(workspace))
             Directory.Delete(workspace, recursive: true);

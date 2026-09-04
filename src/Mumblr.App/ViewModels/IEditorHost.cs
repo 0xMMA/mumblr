@@ -1,3 +1,4 @@
+using System;
 using System.Threading.Tasks;
 
 namespace Mumblr.App.ViewModels;
@@ -8,6 +9,13 @@ namespace Mumblr.App.ViewModels;
 /// </summary>
 public interface IEditorHost
 {
+    /// <summary>
+    /// Raised whenever the document changes, including while the user types. Without it the status
+    /// bar's character count only ever follows text mumblr wrote itself - and Idle, where the user
+    /// edits, is exactly where it would stand still.
+    /// </summary>
+    event Action? TextChanged;
+
     string Text { get; set; }
 
     int CaretOffset { get; set; }

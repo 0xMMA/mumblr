@@ -109,6 +109,29 @@ public static class ClaudeArgsBuilder
         }
     }
 
+    /// <summary>
+    /// The model that answered, from the envelope's <c>modelUsage</c> map. Its keys are the model
+    /// ids that were actually billed, so this reports a downgrade or an alias resolution that the
+    /// requested config value would hide.
+    /// </summary>
+    public static string ExtractModel(string stdout)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(stdout);
+            if (!document.RootElement.TryGetProperty("modelUsage", out var usage)
+                || usage.ValueKind != JsonValueKind.Object)
+                return string.Empty;
+
+            // More than one only happens when a turn actually used more than one; name them all.
+            return string.Join(", ", usage.EnumerateObject().Select(model => model.Name));
+        }
+        catch (JsonException)
+        {
+            return string.Empty;
+        }
+    }
+
     /// <summary>True when the JSON envelope reports an error turn.</summary>
     public static bool IsErrorResult(string stdout)
     {

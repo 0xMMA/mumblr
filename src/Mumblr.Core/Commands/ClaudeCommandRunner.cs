@@ -81,10 +81,12 @@ public sealed class ClaudeCommandRunner : IClaudeCommandRunner
                 stopwatch.Elapsed);
 
         if (ClaudeArgsBuilder.IsErrorResult(output))
-            return new CommandResult(false, ClaudeArgsBuilder.ExtractSummary(output), output, stopwatch.Elapsed);
+            return new CommandResult(false, ClaudeArgsBuilder.ExtractSummary(output), output, stopwatch.Elapsed,
+                ClaudeArgsBuilder.ExtractModel(output));
 
         var summary = ClaudeArgsBuilder.ExtractSummary(output);
-        return new CommandResult(true, summary.Length > 0 ? summary : "(no summary)", output, stopwatch.Elapsed);
+        return new CommandResult(true, summary.Length > 0 ? summary : "(no summary)", output, stopwatch.Elapsed,
+            ClaudeArgsBuilder.ExtractModel(output));
     }
 
     private static void TryKill(Process process)

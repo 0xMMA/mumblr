@@ -41,7 +41,7 @@ public sealed class MumblrConfig
         new PrebuiltCommand
         {
             Label = "Grammatik",
-            Text = "Mach Grammatik, Satzbau und Satzordnung ordentlich. Am Inhalt nichts aendern.",
+            Text = "Mach Grammatik, Satzbau und Satzordnung ordentlich. Am Inhalt nichts ändern.",
         },
     };
 
@@ -124,8 +124,6 @@ public sealed class ClaudeConfig
 
     public string ResolveEffort() => string.IsNullOrWhiteSpace(Effort) ? DefaultEffort : Effort.Trim();
 
-    /// <summary>What the command log shows, so a downgrade is visible without reading the config.</summary>
-    public string Describe() => $"{ResolveModel()} / {ResolveEffort()} effort";
     public int TimeoutSeconds { get; set; } = 180;
 
     /// <summary>Ignores user/project/local settings files in the spawned claude process.</summary>
@@ -145,6 +143,9 @@ public sealed class ClaudeConfig
 
     [JsonPropertyName("headerPrompt")]
     public string HeaderPrompt { get; set; } = DefaultHeaderPrompt;
+
+    /// <summary>What the command log falls back to when the CLI did not name the model it used.</summary>
+    public string Describe() => $"{ResolveModel()} / {ResolveEffort()} effort";
 
     public const string DefaultHeaderPrompt = """
         You are a prompt assistant for dictated text.

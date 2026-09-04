@@ -43,6 +43,27 @@ public class ClaudeArgsBuilderTests
     }
 
     [Fact]
+    public void The_model_that_answered_is_read_out_of_the_envelope()
+    {
+        // Shape taken from a real `claude -p --output-format json` run: modelUsage is keyed by the
+        // model ids that were actually billed, which is what makes a downgrade visible.
+        const string stdout = """
+            {"type":"result","is_error":false,"result":"done",
+             "modelUsage":{"claude-opus-4-6":{"inputTokens":10,"outputTokens":179}}}
+            """;
+
+        ClaudeArgsBuilder.ExtractModel(stdout).ShouldBe("claude-opus-4-6");
+    }
+
+    [Fact]
+    public void An_envelope_without_a_model_yields_nothing_rather_than_a_guess()
+    {
+        ClaudeArgsBuilder.ExtractModel("""{"result":"done"}""").ShouldBe(string.Empty);
+        ClaudeArgsBuilder.ExtractModel("not json at all").ShouldBe(string.Empty);
+        ClaudeArgsBuilder.ExtractModel(string.Empty).ShouldBe(string.Empty);
+    }
+
+    [Fact]
     public void Requests_structured_json_output_for_the_command_log()
     {
         var args = ClaudeArgsBuilder.Build(new ClaudeConfig(), "aufraeumen", FilePath).ToList();

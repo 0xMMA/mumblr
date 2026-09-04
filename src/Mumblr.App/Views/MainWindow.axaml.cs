@@ -19,6 +19,8 @@ public partial class MainWindow : Window, IEditorHost
 {
     private TextEditor? editor;
 
+    public event Action? TextChanged;
+
     public MainWindow()
     {
         InitializeComponent();
@@ -37,6 +39,7 @@ public partial class MainWindow : Window, IEditorHost
             editor.SyntaxHighlighting = HighlightingManager.Instance.GetDefinition("MarkDown");
             editor.Options.EnableHyperlinks = false;
             editor.Options.EnableEmailHyperlinks = false;
+            editor.TextChanged += (_, _) => TextChanged?.Invoke();
         }
     }
 

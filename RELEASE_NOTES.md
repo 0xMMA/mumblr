@@ -7,6 +7,30 @@ then run `mumblr .` in the repo you are working in.
 
 **Installer:** `mumblr-<version>-win-Setup.exe` installs per user and updates itself.
 
+### Fixed in 0.1.3
+
+- **Dictations are no longer written into the app's own install folder.** Started from the start
+  menu shortcut, mumblr wrote into the Velopack `current` directory, which the next update
+  replaces wholesale - the file and its WAV would have been deleted by the first update that
+  landed. A target inside the application directory now falls back to `Documents\mumblr`.
+- A rejected transcription survives everything that happens afterwards. Copying, reverting or
+  reloading the config mid-recording used to erase the error message, and the stop line then
+  reported a clean stop over an empty buffer.
+- A failing command warns instead of reporting in informational grey, and the "Recording resumed."
+  message no longer overwrites it.
+- The command log names the model that actually answered, read out of the CLI's own envelope,
+  rather than the one the config asked for.
+- The character count follows what you type, not only what mumblr writes.
+- A prebuilt button and the hold key can no longer both start a command in the moment channel 1 is
+  being paused - that could run two `claude -p` processes on one file.
+- A typo in `keytermsEncoding` falls back to the encoding that works instead of the one that made
+  every request fail.
+
+### Fixed in 0.1.2
+
+- Release assets carry their version in the filename.
+- The update check no longer claims to be the latest build when it never managed to ask.
+
 ### Fixed in 0.1.1
 
 - **Dictation works again.** 0.1.0 packed the keyterm list into a single value, which ElevenLabs
