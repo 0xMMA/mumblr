@@ -93,6 +93,13 @@ public sealed class SttConfig
 
 public sealed class HotkeyConfig
 {
+    /// <summary>
+    /// The one-click kill switch. Off means nothing is registered and the keyboard hook is gone,
+    /// so no chord from another window can start a recording. Persisted: whoever turned it off
+    /// had a reason that outlives the process.
+    /// </summary>
+    public bool Enabled { get; set; } = true;
+
     /// <summary>Global toggle for recording (channel 1).</summary>
     public string ToggleRecording { get; set; } = "Ctrl+Alt+Space";
 

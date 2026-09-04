@@ -118,7 +118,7 @@ Everything else lives in `%APPDATA%\mumblr\config.json` (the **Config** button o
 | `sttMode` | `Realtime` or `Batch` |
 | `keyterms` | Priority ordered. The head of the list survives the realtime limit of 50. A term carrying `< > { } [ ] \` or more than five words is dropped - ElevenLabs refuses the whole request over one bad term. Past 100 terms every request is billed as at least 20 seconds, and keyterms carry a 20% surcharge. |
 | `dictionary` | Literal replacements applied to committed text |
-| `hotkeys` | `toggleRecording`, `copy`, `revertCommand`, `commandHoldKey` |
+| `hotkeys` | `enabled` (the status bar toggle), `toggleRecording`, `copy`, `revertCommand`, `commandHoldKey` |
 | `claude` | `model`, `effort`, `headerPrompt`, allowed/disallowed tools, timeout |
 | `stt` | Model ids, `noVerbatim`, `languageCode`, base URL, VAD silence threshold, `keytermsEncoding` |
 | `prebuiltCommands` | `label` and `text` per button. Both English: the label is UI, the text an instruction to Claude. The prompt sent with every command says the dictation keeps its own language. |
@@ -128,7 +128,11 @@ transcription key, and `MUMBLR_GITHUB_TOKEN` lets the updater read the release f
 repository. Both come from the environment only, never from config and never from the repo.
 
 Default hotkeys: `Ctrl+Alt+Space` record, hold `Ctrl+Alt+D` for a command, `Ctrl+Alt+C` copy,
-`Ctrl+Alt+Z` revert. They work while your IDE or terminal has focus.
+`Ctrl+Alt+Z` revert. They work while your IDE or terminal has focus - which is the point, and
+also the risk: a chord that collides with a game or another tool starts a recording you did not
+want. The **hotkeys** toggle in the status bar turns all of them off with one click, unregisters
+the chords and removes the keyboard hook; the buttons keep working. The state is saved, so it
+stays off until you turn it on again.
 
 ## What it deliberately is not
 

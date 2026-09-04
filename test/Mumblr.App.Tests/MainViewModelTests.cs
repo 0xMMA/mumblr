@@ -867,6 +867,134 @@ public sealed class MainViewModelTests : IDisposable
         editor.Text.ShouldBe("Unveraendert.");
     }
 
+    // ---------------------------------------------------------------- hotkey switch
+
+    [AvaloniaFact]
+    public async Task Hotkeys_off_ignores_the_chords_and_unregisters_them()
+    {
+        var viewModel = CreateViewModel();
+
+        viewModel.HotkeysEnabled = false;
+        hotkeys.Trigger(HotkeyAction.ToggleRecording);
+        await PumpAsync();
+
+        // Belt and braces: the service is stopped, and a chord that fires anyway is dropped.
+        hotkeys.Started.ShouldBeNull();
+        viewModel.IsRecording.ShouldBeFalse();
+    }
+
+    [AvaloniaFact]
+    public async Task Hotkeys_off_ignores_the_hold_key()
+    {
+        var viewModel = CreateViewModel();
+
+        viewModel.HotkeysEnabled = false;
+        hotkeys.PressCommandKey();
+        await PumpAsync();
+
+        viewModel.IsCommanding.ShouldBeFalse();
+        viewModel.CommandLog.ShouldBeEmpty();
+    }
+
+    [AvaloniaFact]
+    public async Task Hotkeys_on_again_registers_the_chords()
+    {
+        var viewModel = CreateViewModel();
+        viewModel.HotkeysEnabled = false;
+
+        viewModel.HotkeysEnabled = true;
+        hotkeys.Trigger(HotkeyAction.ToggleRecording);
+        await PumpAsync();
+
+        hotkeys.Started.ShouldNotBeNull();
+        viewModel.IsRecording.ShouldBeTrue();
+    }
+
+    [AvaloniaFact]
+    public void Hotkeys_off_shows_in_the_hint_and_survives_a_restart()
+    {
+        var first = CreateViewModel();
+        first.HotkeysEnabled = false;
+
+        first.HotkeyHint.ShouldBe("hotkeys off");
+        configStore.Load().Hotkeys.Enabled.ShouldBeFalse();
+
+        first.Shutdown();
+        var second = CreateViewModel();
+
+        second.HotkeysEnabled.ShouldBeFalse();
+        second.HotkeyHint.ShouldBe("hotkeys off");
+        hotkeys.Started.ShouldBeNull();
+    }
+
+    [AvaloniaFact]
+    public void A_config_reload_honours_the_switch()
+    {
+        var viewModel = CreateViewModel();
+        var edited = configStore.Load();
+        edited.Hotkeys.Enabled = false;
+        configStore.Save(edited);
+
+        viewModel.ReloadConfigCommand.Execute(null);
+
+        viewModel.HotkeysEnabled.ShouldBeFalse();
+        hotkeys.Started.ShouldBeNull();
+    }
+
+    [AvaloniaFact]
+    public async Task Hotkeys_cannot_be_turned_off_while_a_command_runs()
+    {
+        // Unhooking mid-hold would swallow the key-up and leave the command running until the
+        // pause window ends, so the switch is refused while anything is in flight.
+        var viewModel = CreateViewModel();
+        var gate = new TaskCompletionSource<CommandResult>();
+        claude.AsyncBehaviour = (_, _) => gate.Task;
+
+        var running = viewModel.RunPrebuiltCommand.ExecuteAsync(viewModel.PrebuiltCommands[0]);
+        await PumpAsync();
+        viewModel.IsCommanding.ShouldBeTrue();
+
+        viewModel.HotkeysEnabled = false;
+
+        viewModel.HotkeysEnabled.ShouldBeTrue();
+        viewModel.IsWarning.ShouldBeTrue();
+        hotkeys.Started.ShouldNotBeNull();
+
+        gate.SetResult(new CommandResult(true, "done", "{}", TimeSpan.FromSeconds(1)));
+        await running;
+    }
+
+    [AvaloniaFact]
+    public async Task Turning_hotkeys_off_does_not_stop_a_running_recording()
+    {
+        var viewModel = CreateViewModel();
+        await viewModel.ToggleRecordingCommand.ExecuteAsync(null);
+
+        viewModel.HotkeysEnabled = false;
+        await PumpAsync();
+
+        viewModel.IsRecording.ShouldBeTrue();
+        engines.Last!.Stopped.ShouldBeFalse();
+    }
+
+    [AvaloniaFact]
+    public async Task The_mouse_hold_button_works_with_hotkeys_off()
+    {
+        var viewModel = CreateViewModel();
+        editor.Text = "Erster Satz. Zweiter Satz.";
+        claude.FileContentAfterRun = "Erster Satz.";
+        viewModel.HotkeysEnabled = false;
+
+        viewModel.PressCommandButton();
+        await PumpAsync();
+        capture.Emit(new byte[640]);
+        viewModel.ReleaseCommandButton();
+        await PumpAsync();
+
+        claude.Calls.Count.ShouldBe(1);
+        editor.Text.ShouldBe("Erster Satz.");
+    }
+
     public void Dispose()
     {
         // The WAV file stays open for the whole session, so the view model has to go first:

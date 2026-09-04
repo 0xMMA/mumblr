@@ -104,6 +104,11 @@
                     <TextBlock Classes="label" Text="{Binding HotkeyHint}" VerticalAlignment="Center"
                                ToolTip.Tip="{Binding HotkeyHint}"
                                MaxWidth="300" TextTrimming="CharacterEllipsis" />
+                    <ToggleButton Content="{Binding HotkeySwitchText}"
+                                  IsChecked="{Binding HotkeysEnabled}"
+                                  IsEnabled="{Binding !IsCommanding}"
+                                  ToolTip.Tip="Global hotkeys. Off: no key chord from any other window can start a recording. The buttons keep working."
+                                  FontSize="11" Padding="8,2" />
                     <Button Content="{Binding VersionButtonText}"
                             Command="{Binding UseVersionButtonCommand}"
                             ToolTip.Tip="{Binding VersionButtonTooltip}"

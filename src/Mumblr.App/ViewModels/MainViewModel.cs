@@ -106,6 +106,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         this.claudeRunner = claudeRunner ?? new ClaudeCommandRunner(() => config.Claude);
         this.engineFactory = engineFactory ?? new ElevenLabsSttEngineFactory(http);
         selectedSttMode = config.SttMode;
+        hotkeysEnabled = config.Hotkeys.Enabled;
 
         this.capture.DataAvailable += OnAudioCaptured;
         this.capture.LevelChanged += OnLevelChanged;
@@ -113,7 +114,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         this.editor.TextChanged += UpdateCounters;
 
         this.hotkeys.Triggered += OnHotkey;
-        this.hotkeys.CommandKeyDown += () => Dispatcher.UIThread.Post(() => _ = BeginCommandAsync());
+        // Key-down is gated by the switch; key-up never is. A key-up can only end a hold that
+        // began while the switch was on, and dropping it would leave that hold running.
+        this.hotkeys.CommandKeyDown += () => Dispatcher.UIThread.Post(() => { if (HotkeysEnabled) _ = BeginCommandAsync(); });
         this.hotkeys.CommandKeyUp += () => Dispatcher.UIThread.Post(() => _ = EndCommandAsync());
         this.hotkeys.RegistrationFailed += message => Dispatcher.UIThread.Post(() => Warn(message));
 
@@ -165,6 +168,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     [ObservableProperty]
     private string hotkeyHint = string.Empty;
+
+    /// <summary>The kill switch for the global hotkeys. Bound two-way to the toggle in the status bar.</summary>
+    [ObservableProperty]
+    private bool hotkeysEnabled;
 
     [ObservableProperty]
     private string updateVersion = string.Empty;
@@ -979,6 +986,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         suppressConfigSave = true;
         SelectedSttMode = config.SttMode;
+        HotkeysEnabled = config.Hotkeys.Enabled;
         suppressConfigSave = false;
 
         ApplyHotkeys();
@@ -1018,8 +1026,44 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     partial void OnIsRecordingChanged(bool value) => OnPropertyChanged(nameof(RecordButtonText));
 
+    public string HotkeySwitchText => HotkeysEnabled ? "hotkeys: on" : "hotkeys: off";
+
+    partial void OnHotkeysEnabledChanged(bool value)
+    {
+        OnPropertyChanged(nameof(HotkeySwitchText));
+
+        if (suppressConfigSave)
+            return;
+
+        // Unhooking mid-hold would swallow the key-up and leave the command running until the
+        // pause window ends. The toggle is disabled while Commanding, but the hold may still be
+        // in the window before that state is reached.
+        if (!value && (commandStarting || activeCommand is not null))
+        {
+            suppressConfigSave = true;
+            HotkeysEnabled = true;
+            suppressConfigSave = false;
+            Warn("Busy - wait for the running command to finish.");
+            return;
+        }
+
+        config.Hotkeys.Enabled = value;
+        configStore.Save(config);
+        ApplyHotkeys();
+
+        if (!IsWarning)
+            Inform(value ? "Hotkeys on." : "Hotkeys off. Nothing outside this window can start a recording.");
+    }
+
     private void ApplyHotkeys()
     {
+        if (!config.Hotkeys.Enabled)
+        {
+            hotkeys.Stop();
+            HotkeyHint = "hotkeys off";
+            return;
+        }
+
         hotkeys.Start(config.Hotkeys);
         HotkeyHint = hotkeys.IsSupported
             ? $"{config.Hotkeys.ToggleRecording} record  ·  hold {config.Hotkeys.CommandHoldKey} command  ·  " +
@@ -1029,6 +1073,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     private void OnHotkey(HotkeyAction action) => Dispatcher.UIThread.Post(() =>
     {
+        // The service is stopped while the switch is off; this guard is for a chord that
+        // arrives anyway, and it does not trust the unhook.
+        if (!HotkeysEnabled)
+            return;
+
         switch (action)
         {
             case HotkeyAction.ToggleRecording:

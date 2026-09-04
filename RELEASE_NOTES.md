@@ -12,6 +12,11 @@ repository if the version button reports that it could not reach one.
 
 ### Changed in 0.2.0
 
+- **One click turns the global hotkeys off.** The hotkeys work while another window has focus by
+  design, so a chord that collides with a game, a screen share or another tool could start a
+  recording in the background. The **hotkeys** toggle in the status bar unregisters every chord
+  and removes the keyboard hook; the buttons keep working, and the state survives a restart.
+
 - **The shipped Grammar command is English**, like the prompt sent with every command. Neither
   names a language any more: the rule is that the result is in the language the file is in, and a
   technical term stays in the language you used it in. German dictation comes back German. A

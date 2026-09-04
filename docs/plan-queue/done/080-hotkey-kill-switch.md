@@ -42,3 +42,17 @@ back on.
 ## Out of scope
 - Rebinding chords in the UI; the config stays the editor for that.
 - Any change to what the chords do.
+
+## Log
+- The toggle sits in the status bar next to the hotkey hint, not in the toolbar. The hint is the
+  text that changes when the switch flips, and the status bar's hint already trims with an
+  ellipsis, so the toggle costs no window width; the toolbar is at its `MinWidth` budget already.
+- Key-down is gated by the switch, key-up is not. A key-up can only end a hold that began while
+  the switch was on, and dropping it would leave that hold running; `EndCommandAsync` is a no-op
+  when nothing is active, so letting it through is free.
+- The toggle is disabled while Commanding, and the view model also refuses the flip while a
+  command is *starting* - the window between key-down and the Commanding state can be five
+  seconds when a realtime backend is being paused, and the binding cannot see it.
+- Windows by-hand check still open: chord does nothing in a terminal while off, hook gone, toggle
+  back on registers again. Headless tests cover the view model side; the unhook itself is
+  `Win32HotkeyService.Stop()`, which the uninstall path already exercises.
