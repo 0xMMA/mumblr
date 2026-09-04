@@ -92,7 +92,6 @@
                     <TextBlock Classes="label" Text="{Binding SttStatusText}" />
                     <TextBlock Classes="label" Text="{Binding CharacterCount, StringFormat='{}{0} chars'}" />
                     <TextBlock Classes="label" Text="{Binding ApiStatusText}"
-                               ToolTip.Tip="Presence only - mumblr reads the key from the environment and never displays it."
                                Foreground="{Binding HasApiKey, Converter={x:Static vm:Converters.ApiBrush}}" />
                 </StackPanel>
 
@@ -173,7 +172,6 @@
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="cfg:PrebuiltCommand">
                                     <Button Content="{Binding Label}"
-                                            ToolTip.Tip="{Binding Text}"
                                             FontSize="11" Padding="8,3" Margin="0,0,6,0"
                                             Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).RunPrebuiltCommand}"
                                             CommandParameter="{Binding}"

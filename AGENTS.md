@@ -87,6 +87,25 @@ those lines verbatim.
 - **Check CLI flags against `claude --help`,** not against memory. The spec says so explicitly and
   it has been right to.
 
+## Verification
+
+Green tests are not the finish line. When the work is done - the code written, the suite passing,
+the acceptance list ticked - hand it to a fresh reviewer before calling it done:
+
+```
+/review-pr
+```
+
+Run it subagent-driven, and run it even when there is no pull request. The point is not the PR,
+it is a reader who did not write the code, has not been talked into the design, and has no
+investment in the approach being right. Everything expensive this repo has learned - a request
+that never reached ElevenLabs, an update check that claimed to be current without asking, a
+release that renamed itself into a broken upload - looked fine from the inside while it was being
+written.
+
+Act on what comes back before you report. A finding you disagree with gets an argument in the
+reply, not silence.
+
 ## Style
 
 Code, comments, commit messages, task files and the docs in this repo are English. Comments say
