@@ -2,19 +2,18 @@
 
 ## Before you call it done
 
-Dispatch a **fresh** agent — one with none of the working session's context — and have *it* run
-the review:
+Run `/review-pr`, with or without a pull request. It declares `context: fork`, so it already runs
+in a subagent that cannot see the conversation.
 
-```
-Agent(subagent_type: "general-purpose", prompt: "run /review-pr on <target> ...")
-```
+What it does inherit is the brief. A review pointed only at the parts you were already thinking
+about inherits your blind spots with them — the state machine and the release pipeline get read
+closely while a German button label sits untouched in an English window. Name what you did *not*
+look at: every string the user sees, the layout at the shipped window size, and whether the README
+still describes what the code does.
 
-Not a fork, and not the skill invoked from the working session: `review-pr` declares
-`context: fork`, so an in-session call hands the reviewer the assumptions it is supposed to be
-testing. Run it with or without a pull request.
-
-Act on what comes back before you report. A finding you disagree with gets an argument in the
-reply, not silence.
+Act on what comes back before you report, and judge it rather than applying it. A finding can be
+correct and still point at the wrong fix; you have the whole picture, the reviewer has one pass.
+A finding you disagree with gets an argument in the reply, not silence.
 
 ## Build and test
 
