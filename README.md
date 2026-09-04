@@ -61,11 +61,11 @@ Everything else lives in `%APPDATA%\mumblr\config.json` (the **Config** button o
 |---|---|
 | `microphoneDeviceId` | The chosen capture endpoint. mumblr never falls back to the Windows default; if the device is gone it shows the picker. |
 | `sttMode` | `Realtime` or `Batch` |
-| `keyterms` | Priority ordered. The head of the list survives the realtime limit of 50. |
+| `keyterms` | Priority ordered. The head of the list survives the realtime limit of 50. A term carrying `< > { } [ ] \` or more than five words is dropped - ElevenLabs refuses the whole request over one bad term. Past 100 terms every request is billed as at least 20 seconds, and keyterms carry a 20% surcharge. |
 | `dictionary` | Literal replacements applied to committed text |
 | `hotkeys` | `toggleRecording`, `copy`, `revertCommand`, `commandHoldKey` |
 | `claude` | `model`, `effort`, `headerPrompt`, allowed/disallowed tools, timeout |
-| `stt` | Model ids, `noVerbatim`, `languageCode`, base URL, VAD silence threshold |
+| `stt` | Model ids, `noVerbatim`, `languageCode`, base URL, VAD silence threshold, `keytermsEncoding` |
 
 Default hotkeys: `Ctrl+Alt+Space` record, hold `Ctrl+Alt+D` for a command, `Ctrl+Alt+C` copy,
 `Ctrl+Alt+Z` revert. They work while your IDE or terminal has focus.
@@ -83,6 +83,16 @@ the single external service and there is no telemetry.
 dotnet test
 dotnet publish src/Mumblr.App/Mumblr.App.csproj -c Release -r win-x64 --self-contained -o publish
 ```
+
+`dotnet test` never touches the network. The handful of tests that do talk to ElevenLabs are armed
+separately, because they cost money on every run:
+
+```
+MUMBLR_LIVE_TESTS=1 dotnet test --filter FullyQualifiedName~LiveElevenLabs
+```
+
+They exist because the rest of the suite can only assert what mumblr sends, not what ElevenLabs
+accepts - which is how the keyterm encoding shipped broken past a green build.
 
 | Project | What it holds |
 |---|---|

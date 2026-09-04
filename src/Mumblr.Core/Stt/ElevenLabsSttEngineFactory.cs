@@ -30,6 +30,7 @@ public static class SttSessionOptionsFactory
         LanguageCode = config.Stt.LanguageCode,
         BaseUrl = config.Stt.BaseUrl,
         VadSilenceThresholdSecs = config.Stt.VadSilenceThresholdSecs,
+        KeytermsEncoding = config.Stt.KeytermsEncoding,
     };
 
     /// <summary>The command clip always goes through batch, whatever channel 1 is set to.</summary>
@@ -40,5 +41,6 @@ public static class SttSessionOptionsFactory
         NoVerbatim = true,
         LanguageCode = config.Stt.LanguageCode,
         BaseUrl = config.Stt.BaseUrl,
+        KeytermsEncoding = config.Stt.KeytermsEncoding,
     };
 }

@@ -17,6 +17,10 @@ public sealed record SttSessionOptions
 
     public double VadSilenceThresholdSecs { get; init; } = 0.8;
 
-    /// <summary>"json" sends keyterms as a JSON array, "repeated" sends one entry per term.</summary>
-    public string KeytermsEncoding { get; init; } = "json";
+    /// <summary>
+    /// "repeated" sends one entry per term, which is what both endpoints accept. "json" packs the
+    /// list into a single value and is rejected - it exists only as an escape hatch if the API
+    /// changes shape again.
+    /// </summary>
+    public string KeytermsEncoding { get; init; } = "repeated";
 }

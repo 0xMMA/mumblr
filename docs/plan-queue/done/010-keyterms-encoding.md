@@ -52,3 +52,22 @@ URL, one `keyterms` form field per term in the batch multipart POST.
 ## Out of scope
 - Keyterm editing UI, per-mode keyterm lists, keyterm import.
 - Any other change to the STT wire protocol.
+
+## Log
+- Reproduced against the live API before touching code. Batch answered `HTTP 400
+  {"status":"invalid_keyword","message":"Some keyword contains invalid characters"}`; realtime
+  accepted the handshake and then sent `invalid_request` - "Each keyterm must be at most 20
+  characters. '[\"Aspire\",\"Vertical Slice\",\"OpenTelemetry\"]' is 43 characters." Repeated
+  encoding gives 200 and `session_started` with the keyterms echoed back.
+- The acceptance item about migrating an existing config was moot: `keytermsEncoding` never lived
+  in the config at all, only as a hardcoded default on `SttSessionOptions` that the factory never
+  passed through. A `config.json` from v0.1.0 carries no such field and picks up the new default
+  on load. `SttConfig.KeytermsEncoding` was added anyway, so the documented escape hatch is real.
+- There was a second, independent cause for the silence: `StopRecordingAsync` overwrote the
+  warning with "Stopped - buffer copied to the clipboard." A refused request was reported and then
+  erased within the same keystroke. The stop message now appends when a warning is standing. This
+  is the same bug class as the microphone warning fixed earlier in `Initialize` - worth watching
+  for in 040-status-bar, since every status write is a candidate.
+- Live tests are gated on `MUMBLR_LIVE_TESTS=1` rather than on the key alone, so `dotnet test` and
+  the nocturne verify gate never spend money. Confirmed they fail with the old encoding and pass
+  with the new one, so they are not vacuous.

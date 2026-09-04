@@ -13,6 +13,15 @@ public readonly record struct KeytermLimits(int MaxTerms, int MaxTermLength)
 /// </summary>
 public static class KeytermPlanner
 {
+    /// <summary>
+    /// ElevenLabs rejects the whole request - not just the offending term - if any keyterm carries
+    /// one of these. Verified against a live 400: "Some keyword contains invalid characters".
+    /// </summary>
+    public static readonly char[] ForbiddenCharacters = ['<', '>', '{', '}', '[', ']', '\\'];
+
+    /// <summary>A keyterm may hold at most this many words after normalisation.</summary>
+    public const int MaxWords = 5;
+
     public static IReadOnlyList<string> Plan(IEnumerable<string> keyterms, KeytermLimits limits)
     {
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -22,6 +31,8 @@ public static class KeytermPlanner
         {
             var term = raw?.Trim();
             if (string.IsNullOrEmpty(term) || term.Length > limits.MaxTermLength)
+                continue;
+            if (!IsAcceptable(term))
                 continue;
             if (!seen.Add(term))
                 continue;
@@ -33,4 +44,13 @@ public static class KeytermPlanner
 
         return result;
     }
+
+    /// <summary>
+    /// A term the API would reject is dropped rather than repaired. Truncating or stripping
+    /// characters would silently bias the transcript towards a word the user never asked for,
+    /// and one bad term otherwise costs the entire recording.
+    /// </summary>
+    public static bool IsAcceptable(string term) =>
+        term.IndexOfAny(ForbiddenCharacters) < 0 &&
+        term.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length <= MaxWords;
 }

@@ -259,7 +259,14 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         Flush();
         await CopyToClipboardAsync(announce: false);
-        Inform("Stopped - buffer copied to the clipboard.");
+
+        // Starting a recording clears the warning flag, so one still set here belongs to this
+        // recording - a rejected request, a dead microphone. The routine stop message must not
+        // wipe it: that is what made a failing transcription look like a silent one.
+        if (IsWarning)
+            StatusMessage += " - stopped, buffer copied to the clipboard.";
+        else
+            Inform("Stopped - buffer copied to the clipboard.");
     }
 
     private async Task StartEngineAsync()

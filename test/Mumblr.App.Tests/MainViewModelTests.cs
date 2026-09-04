@@ -1,3 +1,4 @@
+using System.Net.Http;
 using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
 using Mumblr.App.ViewModels;
@@ -350,6 +351,62 @@ public sealed class MainViewModelTests : IDisposable
         viewModel.SelectedSttMode = SttMode.Batch;
 
         new ConfigStore(configStore.ConfigPath).Load().SttMode.ShouldBe(SttMode.Batch);
+    }
+
+    [AvaloniaFact]
+    public async Task A_rejected_transcription_survives_the_stop_message()
+    {
+        // The whole reason issue #1 looked silent: the request was refused, and the routine
+        // "Stopped - buffer copied" line then overwrote the only trace of it.
+        var viewModel = CreateViewModel();
+        await viewModel.ToggleRecordingCommand.ExecuteAsync(null);
+        engines.Last!.FailureOnStop = new HttpRequestException("400 Some keyword contains invalid characters");
+
+        await viewModel.ToggleRecordingCommand.ExecuteAsync(null);
+        await PumpAsync();
+
+        viewModel.IsWarning.ShouldBeTrue();
+        viewModel.StatusMessage.ShouldContain("invalid characters");
+        viewModel.StatusMessage.ShouldContain("buffer copied");
+    }
+
+    [AvaloniaFact]
+    public async Task A_realtime_error_over_an_open_socket_survives_the_stop_message()
+    {
+        var viewModel = CreateViewModel();
+        await viewModel.ToggleRecordingCommand.ExecuteAsync(null);
+
+        engines.Last!.Fail(new InvalidOperationException("Each keyterm must be at most 20 characters."));
+        await PumpAsync();
+
+        await viewModel.ToggleRecordingCommand.ExecuteAsync(null);
+        await PumpAsync();
+
+        viewModel.IsWarning.ShouldBeTrue();
+        viewModel.StatusMessage.ShouldContain("20 characters");
+    }
+
+    [AvaloniaFact]
+    public async Task An_ordinary_stop_still_reports_plainly()
+    {
+        var viewModel = CreateViewModel();
+        await viewModel.ToggleRecordingCommand.ExecuteAsync(null);
+
+        await viewModel.ToggleRecordingCommand.ExecuteAsync(null);
+        await PumpAsync();
+
+        viewModel.IsWarning.ShouldBeFalse();
+        viewModel.StatusMessage.ShouldBe("Stopped - buffer copied to the clipboard.");
+    }
+
+    [AvaloniaFact]
+    public async Task Keyterms_go_to_the_backend_as_repeated_parameters()
+    {
+        var viewModel = CreateViewModel();
+
+        await viewModel.ToggleRecordingCommand.ExecuteAsync(null);
+
+        engines.Last!.Options!.KeytermsEncoding.ShouldBe("repeated");
     }
 
     public void Dispose()

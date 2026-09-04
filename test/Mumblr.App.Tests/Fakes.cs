@@ -89,9 +89,7 @@ public sealed class FakeSttEngine : ISttEngine
 
     public event Action<string>? PartialTranscript;
     public event Action<string>? SegmentCommitted;
-#pragma warning disable CS0067
     public event Action<Exception>? Failed;
-#pragma warning restore CS0067
 
     public SttSessionOptions? Options { get; private set; }
     public bool Started { get; private set; }
@@ -100,6 +98,9 @@ public sealed class FakeSttEngine : ISttEngine
 
     /// <summary>Emitted from <see cref="StopAsync"/>, the way the batch backend behaves.</summary>
     public string? TextOnStop { get; set; }
+
+    /// <summary>Thrown from <see cref="StopAsync"/>, the way a rejected batch request behaves.</summary>
+    public Exception? FailureOnStop { get; set; }
 
     public Task StartAsync(SttSessionOptions options, CancellationToken cancellationToken = default)
     {
@@ -117,6 +118,9 @@ public sealed class FakeSttEngine : ISttEngine
     public Task StopAsync(CancellationToken cancellationToken = default)
     {
         Stopped = true;
+        if (FailureOnStop is not null)
+            throw FailureOnStop;
+
         if (TextOnStop is { Length: > 0 })
             SegmentCommitted?.Invoke(TextOnStop);
 
@@ -126,6 +130,9 @@ public sealed class FakeSttEngine : ISttEngine
     public void Commit(string text) => SegmentCommitted?.Invoke(text);
 
     public void Partial(string text) => PartialTranscript?.Invoke(text);
+
+    /// <summary>The realtime backend's own failure path: an error message over an open socket.</summary>
+    public void Fail(Exception ex) => Failed?.Invoke(ex);
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 }

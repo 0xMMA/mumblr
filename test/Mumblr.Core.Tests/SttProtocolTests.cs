@@ -42,21 +42,34 @@ public class BatchSttProtocolTests
 
         server.BatchForm["model_id"].ShouldBe(["scribe_v2"]);
         server.BatchForm["no_verbatim"].ShouldBe(["true"]);
-        server.BatchForm["keyterms"].ShouldBe(["""["Aspire","Shouldly"]"""]);
+        server.BatchForm["keyterms"].ShouldBe(["Aspire", "Shouldly"]);
         server.BatchForm.ShouldNotContainKey("language_code");
     }
 
     [Fact]
-    public async Task Can_send_keyterms_as_repeated_form_fields()
+    public async Task Can_pack_keyterms_into_a_json_array_as_an_escape_hatch()
     {
         await using var server = await FakeElevenLabsServer.StartAsync();
         using var http = new HttpClient();
         await using var engine = new ElevenLabsBatchSttEngine(http, () => "test-key");
 
-        var options = Options(server.BaseUrl) with { KeytermsEncoding = "repeated" };
+        var options = Options(server.BaseUrl) with { KeytermsEncoding = "json" };
         await engine.TranscribeAsync(new byte[320], options);
 
-        server.BatchForm["keyterms"].ShouldBe(["Aspire", "Shouldly"]);
+        server.BatchForm["keyterms"].ShouldBe(["""["Aspire","Shouldly"]"""]);
+    }
+
+    [Fact]
+    public async Task A_keyterm_the_api_would_reject_never_reaches_the_wire()
+    {
+        await using var server = await FakeElevenLabsServer.StartAsync();
+        using var http = new HttpClient();
+        await using var engine = new ElevenLabsBatchSttEngine(http, () => "test-key");
+
+        var options = Options(server.BaseUrl) with { Keyterms = ["Aspire", "wrapped [in] brackets"] };
+        await engine.TranscribeAsync(new byte[320], options);
+
+        server.BatchForm["keyterms"].ShouldBe(["Aspire"]);
     }
 
     [Fact]
@@ -124,7 +137,8 @@ public class RealtimeSttProtocolTests
         query.ShouldContain("model_id=scribe_v2_realtime");
         query.ShouldContain("audio_format=pcm_16000");
         query.ShouldContain("no_verbatim=true");
-        query.ShouldContain("""keyterms=["Aspire"]""");
+        query.ShouldContain("keyterms=Aspire");
+        query.ShouldNotContain("[");
         query.ShouldNotContain("language_code");
     }
 

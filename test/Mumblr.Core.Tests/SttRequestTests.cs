@@ -34,22 +34,25 @@ public class RealtimeUriTests
     }
 
     [Fact]
-    public void Sends_keyterms_as_a_json_array_by_default()
+    public void Sends_keyterms_as_repeated_parameters_by_default()
     {
         var uri = ElevenLabsRequest.BuildRealtimeUri(Options(), ["Aspire", "Shouldly"]);
 
-        Uri.UnescapeDataString(uri.Query).ShouldContain("""keyterms=["Aspire","Shouldly"]""");
+        uri.Query.ShouldContain("keyterms=Aspire");
+        uri.Query.ShouldContain("keyterms=Shouldly");
+
+        // A packed array reads as one 30+ character keyterm and the session is refused outright.
+        Uri.UnescapeDataString(uri.Query).ShouldNotContain("[");
     }
 
     [Fact]
-    public void Can_send_keyterms_as_repeated_parameters()
+    public void Can_pack_keyterms_into_a_json_array_as_an_escape_hatch()
     {
-        var options = Options() with { KeytermsEncoding = "repeated" };
+        var options = Options() with { KeytermsEncoding = "json" };
 
         var uri = ElevenLabsRequest.BuildRealtimeUri(options, ["Aspire", "Shouldly"]);
 
-        uri.Query.ShouldContain("keyterms=Aspire");
-        uri.Query.ShouldContain("keyterms=Shouldly");
+        Uri.UnescapeDataString(uri.Query).ShouldContain("""keyterms=["Aspire","Shouldly"]""");
     }
 
     [Fact]

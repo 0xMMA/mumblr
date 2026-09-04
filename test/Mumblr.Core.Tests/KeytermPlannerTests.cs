@@ -27,6 +27,28 @@ public class KeytermPlannerTests
     }
 
     [Fact]
+    public void Drops_terms_carrying_a_character_the_api_forbids()
+    {
+        // One bad term costs the whole request: ElevenLabs answers 400 for the batch endpoint and
+        // refuses the realtime session, so the term is dropped rather than repaired.
+        var terms = new[] { "Aspire", "a<b", "c{d}", @"e\f", "g[h]", "Shouldly" };
+
+        var planned = KeytermPlanner.Plan(terms, KeytermLimits.Batch);
+
+        planned.ShouldBe(["Aspire", "Shouldly"]);
+    }
+
+    [Fact]
+    public void Drops_terms_longer_than_five_words()
+    {
+        var terms = new[] { "one two three four five", "one two three four five six" };
+
+        var planned = KeytermPlanner.Plan(terms, KeytermLimits.Batch);
+
+        planned.ShouldBe(["one two three four five"]);
+    }
+
+    [Fact]
     public void Batch_allows_longer_terms_than_realtime()
     {
         var term = new string('a', 40);

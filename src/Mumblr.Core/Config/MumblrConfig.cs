@@ -55,6 +55,12 @@ public sealed class SttConfig
 
     /// <summary>Silence in seconds before the realtime VAD commits a segment.</summary>
     public double VadSilenceThresholdSecs { get; set; } = 0.8;
+
+    /// <summary>
+    /// How the keyterm list goes on the wire. "repeated" is the only value ElevenLabs accepts;
+    /// "json" packs the whole list into one value and is rejected by both endpoints.
+    /// </summary>
+    public string KeytermsEncoding { get; set; } = "repeated";
 }
 
 public sealed class HotkeyConfig
