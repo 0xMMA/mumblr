@@ -25,22 +25,73 @@ internal static class Program
     }
 
     /// <summary>`mumblr .` means "write the dictation file here". No argument means the current directory.</summary>
-    internal static string ResolveTargetDirectory(string[] args)
+    internal static string ResolveTargetDirectory(string[] args) =>
+        ResolveTargetDirectory(args, Directory.GetCurrentDirectory(), AppContext.BaseDirectory);
+
+    internal static string ResolveTargetDirectory(string[] args, string currentDirectory, string applicationDirectory)
     {
         // Only the first argument is the target folder. Anything that starts with a dash belongs to
         // a switch, and its value must not be mistaken for a path.
         var candidate = args.Length > 0 && !args[0].StartsWith('-') ? args[0] : null;
+
+        string target;
         if (string.IsNullOrWhiteSpace(candidate))
-            return Directory.GetCurrentDirectory();
+        {
+            target = currentDirectory;
+        }
+        else
+        {
+            try
+            {
+                target = Path.GetFullPath(candidate);
+            }
+            catch (Exception)
+            {
+                target = currentDirectory;
+            }
+        }
+
+        return IsInsideApplicationDirectory(target, applicationDirectory) ? FallbackDirectory() : target;
+    }
+
+    /// <summary>
+    /// Launched from the start menu shortcut, the working directory is the install folder itself -
+    /// and for a Velopack install that is `current`, which the next update replaces wholesale. A
+    /// dictation written there is deleted by the first update that lands. Nothing about the app is
+    /// meant to live inside its own program folder, so anywhere else is safer than there.
+    /// </summary>
+    internal static bool IsInsideApplicationDirectory(string target, string applicationDirectory)
+    {
+        if (string.IsNullOrWhiteSpace(applicationDirectory))
+            return false;
 
         try
         {
-            return Path.GetFullPath(candidate);
+            var app = Path.TrimEndingDirectorySeparator(Path.GetFullPath(applicationDirectory));
+            var candidate = Path.TrimEndingDirectorySeparator(Path.GetFullPath(target));
+
+            var comparison = OperatingSystem.IsWindows()
+                ? StringComparison.OrdinalIgnoreCase
+                : StringComparison.Ordinal;
+
+            return candidate.Equals(app, comparison)
+                   || candidate.StartsWith(app + Path.DirectorySeparatorChar, comparison);
         }
         catch (Exception)
         {
-            return Directory.GetCurrentDirectory();
+            return false;
         }
+    }
+
+    private static string FallbackDirectory()
+    {
+        var documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+        var fallback = string.IsNullOrWhiteSpace(documents)
+            ? Path.Combine(Path.GetTempPath(), "mumblr")
+            : Path.Combine(documents, "mumblr");
+
+        Directory.CreateDirectory(fallback);
+        return fallback;
     }
 
     // Avalonia configuration, don't remove; also used by visual designer.
