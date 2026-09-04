@@ -219,11 +219,13 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _ = CheckForUpdatesAsync();
     }
 
-    private async Task CheckForUpdatesAsync()
+    private async Task<UpdateService.UpdateCheck> CheckForUpdatesAsync()
     {
-        var version = await updates.CheckAsync();
-        if (version is not null)
+        var outcome = await updates.CheckAsync();
+        if (outcome == UpdateService.UpdateCheck.Available && updates.AvailableVersion is { } version)
             UpdateVersion = version;
+
+        return outcome;
     }
 
     partial void OnUpdateVersionChanged(string value)
@@ -247,8 +249,23 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
 
         Inform("Checking for updates...");
-        await CheckForUpdatesAsync();
-        Inform(HasUpdate ? $"Update {UpdateVersion} available." : $"v{Version} is the latest build.");
+
+        switch (await CheckForUpdatesAsync())
+        {
+            case UpdateService.UpdateCheck.Available:
+                Inform($"Update {UpdateVersion} available.");
+                break;
+            case UpdateService.UpdateCheck.UpToDate:
+                Inform($"v{Version} is the latest build.");
+                break;
+            case UpdateService.UpdateCheck.NotInstalled:
+                Inform("This build updates by replacing the folder, not from inside the app.");
+                break;
+            default:
+                // Saying "up to date" here would be a claim the app never actually checked.
+                Warn("Could not reach the release feed. Check the releases page manually.");
+                break;
+        }
     }
 
     [RelayCommand]

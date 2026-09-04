@@ -63,6 +63,22 @@ jobs:
           --outputDir releases
           --releaseNotes RELEASE_NOTES.md
 
+      - name: Name the assets after the version
+        shell: pwsh
+        run: |
+          # A Downloads folder holding mumblr-win-Setup.exe, mumblr-win-Setup(1).exe and
+          # mumblr-win-Setup(2).exe tells you nothing about which build is which. The Velopack
+          # feed references only the .nupkg, so renaming these two is safe.
+          $version = '${{ steps.version.outputs.version }}'
+          Get-ChildItem releases -File |
+            Where-Object { $_.Name -match '^mumblr-win-(Setup\.exe|Portable\.zip)$' } |
+            ForEach-Object {
+              $target = $_.Name -replace '^mumblr-win-', "mumblr-$version-win-"
+              Rename-Item -LiteralPath $_.FullName -NewName $target
+              Write-Host "$($_.Name) -> $target"
+            }
+          Get-ChildItem releases -File | Select-Object -ExpandProperty Name
+
       - name: Upload the release
         run: >
           vpk upload github

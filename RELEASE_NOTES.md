@@ -2,10 +2,10 @@
 
 Ultra specific voice recorder for development work: talk, get markdown, hand it to Claude Code.
 
-**Portable:** download `mumblr-win-Portable.zip`, unzip anywhere, put the folder on your `PATH`,
+**Portable:** download `mumblr-<version>-win-Portable.zip`, unzip anywhere, put the folder on your `PATH`,
 then run `mumblr .` in the repo you are working in.
 
-**Installer:** `mumblr-win-Setup.exe` installs per user and updates itself.
+**Installer:** `mumblr-<version>-win-Setup.exe` installs per user and updates itself.
 
 ### Fixed in 0.1.1
 

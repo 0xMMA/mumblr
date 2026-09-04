@@ -24,7 +24,7 @@ public and these two replace the static badges above:
 
 ### [Download the portable build](https://github.com/0xMMA/mumblr/releases/latest)
 
-No installer needed - unzip `mumblr-win-Portable.zip`, put the folder on your `PATH`, done.
+No installer needed - unzip `mumblr-<version>-win-Portable.zip`, put the folder on your `PATH`, done.
 
 </div>
 
