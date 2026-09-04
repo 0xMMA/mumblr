@@ -1,4 +1,34 @@
+<div align="center">
+
+<img src="src/Mumblr.App/Assets/mumblr.png" width="88" alt="" />
+
 # mumblr
+
+**Talk at the repo you are standing in. Get a markdown file and your clipboard.**
+
+![platform](https://img.shields.io/badge/platform-windows%20x64-2b6cb0?style=flat-square)
+![stack](https://img.shields.io/badge/.NET%2010-Avalonia-512BD4?style=flat-square)
+
+[Releases](https://github.com/0xMMA/mumblr/releases) · [CI](https://github.com/0xMMA/mumblr/actions/workflows/ci.yml) · [Issues](https://github.com/0xMMA/mumblr/issues)
+
+<!--
+The repository is private, so no service can read its build status: shields.io answers
+"repo or workflow not found" and GitHub's own badge endpoint answers 404. Make the repo
+public and these two replace the static badges above:
+
+[![ci](https://img.shields.io/github/actions/workflow/status/0xMMA/mumblr/ci.yml?branch=main&label=ci&style=flat-square)](https://github.com/0xMMA/mumblr/actions/workflows/ci.yml)
+[![release](https://img.shields.io/github/v/release/0xMMA/mumblr?label=release&style=flat-square)](https://github.com/0xMMA/mumblr/releases/latest)
+-->
+
+<img src="docs/assets/screenshot.png" width="920" alt="The mumblr window: dictation buffer on the left, command log on the right." />
+
+### [Download the portable build](https://github.com/0xMMA/mumblr/releases/latest)
+
+No installer needed - unzip `mumblr-win-Portable.zip`, put the folder on your `PATH`, done.
+
+</div>
+
+---
 
 Ultra specific voice recorder for development work: get thoughts and prompts into text fast, with
 minimal cleanup afterwards. Not a generic dictation tool and not system-wide typing - the output is
