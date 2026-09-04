@@ -75,8 +75,9 @@ panel, and every call is snapshotted so you can revert it.
 Commands you say word for word every day belong on a button instead. `prebuiltCommands` in the
 config becomes a row of buttons above the log; clicking one skips the microphone and the STT round
 trip entirely and takes the identical path from there - snapshot, `claude -p`, reload, revert. The
-shipped one is the sentence that gets dictated most: *Mach Grammatik, Satzbau und Satzordnung
-ordentlich. Am Inhalt nichts ändern.*
+shipped one, **Grammar**, fixes grammar, sentence structure and word order and changes nothing
+else: not the content, and not its language. German dictation with English terms comes back as
+German dictation with English terms.
 
 ## States
 
@@ -120,7 +121,7 @@ Everything else lives in `%APPDATA%\mumblr\config.json` (the **Config** button o
 | `hotkeys` | `toggleRecording`, `copy`, `revertCommand`, `commandHoldKey` |
 | `claude` | `model`, `effort`, `headerPrompt`, allowed/disallowed tools, timeout |
 | `stt` | Model ids, `noVerbatim`, `languageCode`, base URL, VAD silence threshold, `keytermsEncoding` |
-| `prebuiltCommands` | `label` and `text` per button. The label is UI, so English; the text is the prompt and stays in the language of your dictation. |
+| `prebuiltCommands` | `label` and `text` per button. Both English: the label is UI, the text an instruction to Claude. The prompt sent with every command says the dictation keeps its own language. |
 
 Two settings are deliberately not in the file. `ELEVENLABS_API_KEY` (or `XI_API_KEY`) carries the
 transcription key, and `MUMBLR_GITHUB_TOKEN` lets the updater read the release feed of a private

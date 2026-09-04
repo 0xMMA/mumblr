@@ -40,11 +40,14 @@ public sealed class MumblrConfig
     {
         new PrebuiltCommand
         {
-            // The label is UI, so it is English like every other control. The command text is not
-            // UI - it is a prompt about German dictation, and it stays in the language of the
-            // text it operates on.
+            // Label and text are both English: the label is UI, the text an instruction to Claude.
+            // An English instruction over German dictation is exactly how a "fix the grammar"
+            // turns into a translation, so the command says out loud what the header prompt
+            // already demands - the text keeps its language.
             Label = "Grammar",
-            Text = "Mach Grammatik, Satzbau und Satzordnung ordentlich. Am Inhalt nichts ändern.",
+            Text = "Fix grammar, sentence structure and word order. Change nothing about the content, " +
+                   "and keep the language of the text: it stays in the language it was dictated in, " +
+                   "technical terms included.",
         },
     };
 
@@ -73,7 +76,7 @@ public sealed class SttConfig
     /// <summary>Drops filler words and false starts inside the model.</summary>
     public bool NoVerbatim { get; set; } = true;
 
-    /// <summary>Unset means auto-detect (German with English technical terms).</summary>
+    /// <summary>Unset means auto-detect.</summary>
     public string? LanguageCode { get; set; }
 
     public string BaseUrl { get; set; } = "https://api.elevenlabs.io";
@@ -170,8 +173,9 @@ public sealed class ClaudeConfig
         and came through speech-to-text, so it may be garbled - act on its most plausible
         reading. There is no one here to answer a question: decide rather than ask.
 
-        The file holds dictated German with English technical terms. Keep the author's wording,
-        voice and language, do what the command asks, and leave every other line untouched.
+        The file is dictation. Keep the author's wording and voice, do what the command asks,
+        and leave every other line untouched. The result is in the language the file is in,
+        whatever that is, and a technical term stays in the language the author used it in.
         Add nothing the command did not ask for - no notes, no report of your own in the file.
 
         Summarize in one English sentence what changed, not what was asked: "Merged the last two

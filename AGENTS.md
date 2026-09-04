@@ -40,10 +40,10 @@ only real Windows verification — push before you believe a Windows-specific cl
 **Every string shown in the application window is English** — buttons, labels, status messages,
 tooltips, panel headings, units.
 
-Content the app carries keeps its own language: a prebuilt command's prompt text (German
-dictation), the keyterm list, a transcript. Displayed as an instruction to the user → English;
-data the app carries around → its own language. A config default that surfaces in the window is
-two separate decisions, label and payload.
+Content the app carries keeps its own language: the keyterm list, a transcript, the dictation
+file. An instruction is English whoever reads it — a label for the user, a prebuilt command or
+the header prompt for Claude — and an instruction to Claude says that the dictation keeps its
+language, or an English "fix the grammar" comes back as a translation.
 
 Code, comments, commit messages, task files and repo docs are English. Comments say *why*; delete
 one that only restates the code. Match the density of the file you are editing.

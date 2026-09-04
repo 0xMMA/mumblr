@@ -46,3 +46,25 @@ into English because the instruction was English.
 ## Out of scope
 - Picking the STT language (120).
 - Any new prebuilt command (110).
+
+## Log
+- The live check is a test, not a one-off: `LiveClaudeTests` in Mumblr.Core.Tests, armed by the
+  same `MUMBLR_LIVE_TESTS=1` gate as the ElevenLabs tests, skipped otherwise. It runs the shipped
+  Grammar command through the real `ClaudeCommandRunner` (which is platform neutral, so it runs
+  on the Linux dev box too) and asserts invariants only: the English terms survive verbatim, the
+  German function words are still there, no " the " appears.
+- First run, 11 s, Opus: "Also ich hab mir überlegt dass wir das Feature mit den Vertical Slices
+  anders bauen sollten weil das mit dem Aspire Dashboard und OpenTelemetry funktioniert ja
+  eigentlich schon ganz gut aber die Handler sind halt viel zu fett geworden. ..." came back as
+  "Also, ich hab mir überlegt, dass wir das Feature mit den Vertical Slices anders bauen sollten.
+  Das mit dem Aspire Dashboard und OpenTelemetry funktioniert ja eigentlich schon ganz gut, aber
+  die Handler sind halt viel zu fett geworden. Wir müssten den Command- vom Query-Teil trennen,
+  ..." Summary: "Added the missing commas, split the overlong run-on sentence after the dangling
+  'weil' clause, and tightened 'die Commands vom Query Teil' to 'den Command- vom Query-Teil'."
+- The envelope's `modelUsage` lists haiku next to opus. The edit is Opus; the CLI runs its own
+  helper calls on haiku. The log column shows both, which is honest, if surprising.
+- The header prompt's rule is one sentence: "The result is in the language the file is in,
+  whatever that is, and a technical term stays in the language the author used it in." It no
+  longer says what the file holds, so 120 can pick any STT language without touching it.
+- Release notes open a "Changed in 0.2.0" section. Six queued features make the next tag a
+  minor bump, not a patch.

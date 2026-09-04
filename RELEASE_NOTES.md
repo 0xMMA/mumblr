@@ -10,6 +10,14 @@ so `mumblr .` works from any folder. Open a new terminal afterwards - a `PATH` c
 reach one that is already running. In-app updates need a release feed the app can read; see the
 repository if the version button reports that it could not reach one.
 
+### Changed in 0.2.0
+
+- **The shipped Grammar command is English**, like the prompt sent with every command. Neither
+  names a language any more: the rule is that the result is in the language the file is in, and a
+  technical term stays in the language you used it in. German dictation comes back German. A
+  `config.json` written by 0.1.x keeps the old German text as your own entry - delete the
+  `prebuiltCommands` entry and reload to pick up the new default.
+
 ### Fixed in 0.1.6
 
 - **`claude -p` runs with the customization layer off** (`--safe-mode`). Until now your own hooks
