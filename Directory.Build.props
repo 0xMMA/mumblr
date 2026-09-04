@@ -4,8 +4,26 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <InvariantGlobalization>true</InvariantGlobalization>
-    <Version>0.1.0</Version>
   </PropertyGroup>
+
+  <!--
+    The version is never written down. MinVer derives it from the git tags, so the number in the
+    binary, in the status bar and on the release page can only ever be the tag the build came from.
+    A hand-maintained <Version> here went stale the moment a release was cut from a different
+    commit, and the app then reported a version it was not.
+
+    On a tag  v0.1.1        -> 0.1.1
+    After it  three commits -> 0.1.2-alpha.0.3
+    A shallow clone has no tags, so CI must check out with fetch-depth: 0.
+  -->
+  <PropertyGroup>
+    <MinVerTagPrefix>v</MinVerTagPrefix>
+    <MinVerDefaultPreReleaseIdentifiers>alpha.0</MinVerDefaultPreReleaseIdentifiers>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MinVer" Version="7.0.0" PrivateAssets="all" />
+  </ItemGroup>
 
   <!-- Release builds ship without symbols; the portable package is large enough as it is. -->
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">

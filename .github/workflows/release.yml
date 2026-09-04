@@ -45,7 +45,6 @@ jobs:
         run: >
           dotnet publish src/Mumblr.App/Mumblr.App.csproj
           -c Release -r win-x64 --self-contained true
-          -p:Version=${{ steps.version.outputs.version }}
           -o publish
 
       - name: Install Velopack

@@ -1,3 +1,4 @@
+using System.Reflection;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -156,9 +157,26 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     public bool HasUpdate => UpdateVersion.Length > 0;
 
-    /// <summary>The running build, so a bug report can name the version it came from.</summary>
-    public string Version { get; } =
-        (System.Reflection.Assembly.GetEntryAssembly()?.GetName().Version?.ToString(3)) ?? "dev";
+    /// <summary>
+    /// The running build, so a bug report can name the version it came from. MinVer writes the
+    /// informational version, which says "0.1.2-alpha.0.7" for a build between tags where the
+    /// assembly version would flatten that to a released-looking 0.1.2. The commit hash after the
+    /// "+" is dropped: it belongs in a report, not in a status bar.
+    /// </summary>
+    public string Version { get; } = ResolveVersion();
+
+    private static string ResolveVersion()
+    {
+        var informational = System.Reflection.Assembly.GetEntryAssembly()
+            ?.GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>()
+            ?.InformationalVersion;
+
+        if (string.IsNullOrWhiteSpace(informational))
+            return System.Reflection.Assembly.GetEntryAssembly()?.GetName().Version?.ToString(3) ?? "dev";
+
+        var plus = informational.IndexOf('+');
+        return plus < 0 ? informational : informational[..plus];
+    }
 
     /// <summary>Presence only. mumblr never reads the key from config, and never displays it.</summary>
     public string ApiStatusText => HasApiKey ? "API key" : "no API key";

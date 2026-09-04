@@ -7,6 +7,21 @@ then run `mumblr .` in the repo you are working in.
 
 **Installer:** `mumblr-win-Setup.exe` installs per user and updates itself.
 
+### Fixed in 0.1.1
+
+- **Dictation works again.** 0.1.0 packed the keyterm list into a single value, which ElevenLabs
+  read as one oversized keyterm and refused - every fresh install failed on its very first
+  recording. Keyterms now go out as repeated parameters, and a term the API would reject is
+  dropped instead of killing the request.
+- A rejected request is no longer invisible: the stop message stopped overwriting the error that
+  explained it.
+- The status bar now shows the microphone, the STT backend's actual state, a key-present
+  indicator, the character count and the running version.
+- Prebuilt command buttons: the edits you dictate word for word every day are a click, with no
+  microphone and no transcription round trip.
+- A blank model or effort in the config can no longer downgrade a command; it falls back to Opus
+  at high effort.
+
 ### What is in this build
 
 - `mumblr .` creates `dictated-<timestamp>.md` in the folder you pass, with the WAV next to it
