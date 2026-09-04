@@ -63,22 +63,6 @@ jobs:
           --outputDir releases
           --releaseNotes RELEASE_NOTES.md
 
-      - name: Name the assets after the version
-        shell: pwsh
-        run: |
-          # A Downloads folder holding mumblr-win-Setup.exe, mumblr-win-Setup(1).exe and
-          # mumblr-win-Setup(2).exe tells you nothing about which build is which. The Velopack
-          # feed references only the .nupkg, so renaming these two is safe.
-          $version = '${{ steps.version.outputs.version }}'
-          Get-ChildItem releases -File |
-            Where-Object { $_.Name -match '^mumblr-win-(Setup\.exe|Portable\.zip)$' } |
-            ForEach-Object {
-              $target = $_.Name -replace '^mumblr-win-', "mumblr-$version-win-"
-              Rename-Item -LiteralPath $_.FullName -NewName $target
-              Write-Host "$($_.Name) -> $target"
-            }
-          Get-ChildItem releases -File | Select-Object -ExpandProperty Name
-
       - name: Upload the release
         run: >
           vpk upload github
@@ -90,6 +74,33 @@ jobs:
           --targetCommitish ${{ github.sha }}
           --merge
           --publish
+
+      # Renaming on disk before the upload does not work: vpk reads the file names from its own
+      # manifest rather than from the directory, and dies with "Could not find file". So the
+      # assets are renamed on the release afterwards. Only the .nupkg is referenced by
+      # releases.win.json, so the installer and the portable zip are free to be renamed - and a
+      # Downloads folder holding mumblr-win-Setup.exe, mumblr-win-Setup(1).exe and
+      # mumblr-win-Setup(2).exe tells you nothing about which build is which.
+      - name: Name the release assets after the version
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $version = '${{ steps.version.outputs.version }}'
+          $tag = '${{ steps.version.outputs.tag }}'
+          $renamed = 0
+
+          foreach ($line in gh api "repos/${{ github.repository }}/releases/tags/$tag" --jq '.assets[] | "\(.id) \(.name)"') {
+            $id, $name = $line -split ' ', 2
+            if ($name -notmatch '^mumblr-win-(Setup\.exe|Portable\.zip)$') { continue }
+
+            $target = $name -replace '^mumblr-win-', "mumblr-$version-win-"
+            gh api -X PATCH "repos/${{ github.repository }}/releases/assets/$id" -f name="$target" | Out-Null
+            Write-Host "$name -> $target"
+            $renamed++
+          }
+
+          if ($renamed -ne 2) { throw "Expected to rename the installer and the portable zip, renamed $renamed" }
 
       - uses: actions/upload-artifact@v4
         with:
