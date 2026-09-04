@@ -4,7 +4,8 @@
 
 # mumblr
 
-**Talk at the repo you are standing in. Get a markdown file and your clipboard.**
+**Think out loud, get a prompt. Speech to markdown in the folder you start it from, with edits by
+voice through your local Claude Code.**
 
 ![platform](https://img.shields.io/badge/platform-windows%20x64-2b6cb0?style=flat-square)
 ![stack](https://img.shields.io/badge/.NET%2010-Avalonia-512BD4?style=flat-square)
@@ -35,9 +36,12 @@ channel. mumblr is free and talks to nothing besides those two.
 
 ---
 
-Ultra specific voice recorder for development work: get thoughts and prompts into text fast, with
-minimal cleanup afterwards. Not a generic dictation tool and not system-wide typing - the output is
-one markdown file in the repo folder you are standing in, plus the clipboard.
+A voice recorder built around one loop: thinking out loud while you develop, and turning that into
+text a coding agent can use. It is deliberately narrow - one markdown file in the folder you start
+it from, the whole buffer on your clipboard when you stop, and spoken edits handed to your local
+Claude Code. Nothing stops you dictating a shopping list with it; nothing is optimized for that
+either. The roadmap follows the development loop: prompts, notes, commit messages, the things you
+say to an agent.
 
 ```
 mumblr .

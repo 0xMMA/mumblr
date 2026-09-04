@@ -1,6 +1,6 @@
 ## mumblr
 
-Ultra specific voice recorder for development work: talk, get markdown, hand it to Claude Code.
+Think out loud, get a prompt: speech to markdown in the folder you start it from, with edits by voice through your local Claude Code.
 
 **Portable:** download `mumblr-<version>-win-Portable.zip`, unzip anywhere, put the folder on your `PATH`,
 then run `mumblr .` in the repo you are working in.
