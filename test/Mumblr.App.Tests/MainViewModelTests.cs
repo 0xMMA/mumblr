@@ -763,6 +763,8 @@ public sealed class MainViewModelTests : IDisposable
         // the hold key's release failed a prebuilt command's entry, unlocked the editor and
         // resumed channel 1 underneath it.
         var viewModel = CreateViewModel();
+        editor.Text = "Vorher.";
+        claude.FileContentAfterRun = "Nachher.";
         var gate = new TaskCompletionSource<CommandResult>();
         claude.AsyncBehaviour = (_, _) => gate.Task;
 
@@ -845,6 +847,24 @@ public sealed class MainViewModelTests : IDisposable
         // Batch raises its failures only out of StopAsync, so this state was unreachable while
         // the status was cleared before that await.
         viewModel.EngineStatus.ShouldBe("error");
+    }
+
+    [AvaloniaFact]
+    public async Task A_command_that_changed_nothing_says_so()
+    {
+        // claude can succeed and still do nothing - ask a question, decide there is nothing to
+        // change. Reporting that as "done" makes a no-op look like work.
+        var viewModel = CreateViewModel();
+        editor.Text = "Unveraendert.";
+        claude.Behaviour = (_, _) => new CommandResult(true, "Nothing needed changing.", "{}", TimeSpan.FromSeconds(2));
+
+        await viewModel.RunPrebuiltCommand.ExecuteAsync(viewModel.PrebuiltCommands[0]);
+        await PumpAsync();
+
+        viewModel.CommandLog[0].Status.ShouldBe(CommandStatus.Failed);
+        viewModel.CommandLog[0].Response.ShouldStartWith("No change made.");
+        viewModel.IsWarning.ShouldBeTrue();
+        editor.Text.ShouldBe("Unveraendert.");
     }
 
     public void Dispose()

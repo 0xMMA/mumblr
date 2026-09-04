@@ -754,10 +754,24 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             try
             {
                 // claude edited the file; the file is now the truth, so reload it into the buffer.
+                var before = editor.Text;
                 var reloaded = document.Read();
                 editor.Text = reloaded;
                 insertOffset = reloaded.Length;
                 UpdateCounters();
+
+                // A run that asked a question, or decided there was nothing to do, still returns
+                // success and a sentence. Reporting that as "done" makes a no-op look like work.
+                if (string.Equals(before, reloaded, StringComparison.Ordinal))
+                {
+                    entry.Status = CommandStatus.Failed;
+                    entry.Response = $"No change made. {result.Summary}";
+                    activeCommand = null;
+                    spokenCommand = null;
+                    await FinishCommandAsync();
+                    Warn("Command changed nothing.");
+                    return;
+                }
             }
             catch (Exception ex)
             {

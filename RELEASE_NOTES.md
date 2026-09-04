@@ -10,6 +10,19 @@ so `mumblr .` works from any folder. Open a new terminal afterwards - a `PATH` c
 reach one that is already running. In-app updates need a release feed the app can read; see the
 repository if the version button reports that it could not reach one.
 
+### Fixed in 0.1.6
+
+- **`claude -p` runs with the customization layer off** (`--safe-mode`). Until now your own hooks
+  fired over the dictation file: a PostToolUse hook that formats or lints edited files would
+  reformat a paragraph of spoken German, and an output style would rewrite the summary the log
+  shows. The prompt could only ask for that to be ignored; the flag enforces it.
+- **A command that changed nothing says so.** claude can succeed and still do nothing - ask a
+  question, decide there is nothing to change - and the log reported that as "done".
+- The prompt sent with each command was rewritten. It no longer forbids what the tool cannot do
+  anyway, and it now says the things nothing else enforces: the command came through
+  speech-to-text and may be garbled, there is nobody to ask, and the summary should say what
+  changed rather than repeat the request.
+
 ### Fixed in 0.1.5
 
 - **The installer puts `mumblr` on your `PATH`.** It did not, and neither did unzipping the

@@ -43,6 +43,24 @@ public class ClaudeArgsBuilderTests
     }
 
     [Fact]
+    public void The_customization_layer_is_off_by_default()
+    {
+        // Without this the user's own hooks run over the dictation file: a PostToolUse hook that
+        // formats edited files would reformat a paragraph of spoken German.
+        var args = ClaudeArgsBuilder.Build(new ClaudeConfig(), "aufraeumen", FilePath).ToList();
+
+        args.ShouldContain("--safe-mode");
+    }
+
+    [Fact]
+    public void Safe_mode_can_be_turned_off_for_a_setup_that_needs_its_own_tooling()
+    {
+        var args = ClaudeArgsBuilder.Build(new ClaudeConfig { SafeMode = false }, "x", FilePath).ToList();
+
+        args.ShouldNotContain("--safe-mode");
+    }
+
+    [Fact]
     public void The_model_that_answered_is_read_out_of_the_envelope()
     {
         // Shape taken from a real `claude -p --output-format json` run: modelUsage is keyed by the

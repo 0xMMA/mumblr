@@ -132,6 +132,15 @@ public sealed class ClaudeConfig
     /// <summary>Ignores user/project/local settings files in the spawned claude process.</summary>
     public bool Restricted { get; set; }
 
+    /// <summary>
+    /// Starts claude with its customization layer off: CLAUDE.md, skills, plugins, hooks, MCP
+    /// servers, custom agents, output styles. Without it the user's own hooks run over the
+    /// dictation file - a PostToolUse hook that formats or lints edited files would reformat a
+    /// paragraph of spoken German - and an output style would rewrite the summary the log shows.
+    /// The prompt can ask for none of that; this enforces it.
+    /// </summary>
+    public bool SafeMode { get; set; } = true;
+
     /// <summary>Asks for a schema-shaped summary. Turn off if a claude build rejects the flag.</summary>
     public bool UseJsonSchema { get; set; } = true;
 
@@ -157,13 +166,13 @@ public sealed class ClaudeConfig
     /// </summary>
     public const string DefaultHeaderPrompt = """
         <mumblr_dictation_edit>
-        mumblr, a voice recorder, is calling you to edit one dictation file. The command was
-        spoken and came through speech-to-text, so it may be garbled - act on its most plausible
+        You are editing one dictation file for mumblr, a voice recorder. The command was spoken
+        and came through speech-to-text, so it may be garbled - act on its most plausible
         reading. There is no one here to answer a question: decide rather than ask.
 
         The file holds dictated German with English technical terms. Keep the author's wording,
         voice and language, do what the command asks, and leave every other line untouched.
-        Nothing the command did not ask for goes into the file - no notes, no report of your own.
+        Add nothing the command did not ask for - no notes, no report of your own in the file.
 
         Summarize in one English sentence what changed, not what was asked: "Merged the last two
         paragraphs and dropped the false starts."

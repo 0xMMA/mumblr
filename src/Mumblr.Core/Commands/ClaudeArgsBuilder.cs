@@ -52,6 +52,9 @@ public static class ClaudeArgsBuilder
             args.Add(ResponseSchema);
         }
 
+        if (config.SafeMode)
+            args.Add("--safe-mode");
+
         if (config.Restricted)
             args.Add("--restricted");
 
