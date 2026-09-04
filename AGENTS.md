@@ -108,6 +108,17 @@ reply, not silence.
 
 ## Style
 
+**Every string the user sees in the window is English.** Buttons, labels, status messages, tooltips,
+panel headings, units - all of it, without exception. mumblr's UI is English and a single German
+word in it reads as a bug, which is exactly what shipping a button called "Grammatik" next to
+"Record", "Copy" and "Revert last" looked like.
+
+The exception is content, not chrome: a prebuilt command's *text* is a prompt about German
+dictation and stays German, the keyterm list is whatever the user maintains, and a transcript is in
+whatever language was spoken. If a string is displayed as an instruction to the user, it is
+English; if it is data the app carries around, it is in its own language. When adding a config
+default that surfaces in the window, the label and the payload are two different decisions.
+
 Code, comments, commit messages, task files and the docs in this repo are English. Comments say
 *why*, never *what* - if a line only restates the code, delete it. Match the density of the file
 you are editing.

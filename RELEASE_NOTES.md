@@ -7,6 +7,13 @@ then run `mumblr .` in the repo you are working in.
 
 **Installer:** `mumblr-<version>-win-Setup.exe` installs per user and updates itself.
 
+### Fixed in 0.1.4
+
+- The prebuilt command button is called **Grammar**, not "Grammatik". The window is English; the
+  command it sends is still German, because the text it edits is. A `config.json` written by an
+  earlier version keeps the old label - rename it there, or delete the entry and let it be
+  recreated.
+
 ### Fixed in 0.1.3
 
 - **Dictations are no longer written into the app's own install folder.** Started from the start

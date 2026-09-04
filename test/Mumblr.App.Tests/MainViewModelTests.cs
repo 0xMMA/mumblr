@@ -497,7 +497,8 @@ public sealed class MainViewModelTests : IDisposable
         var viewModel = CreateViewModel();
 
         viewModel.HasPrebuiltCommands.ShouldBeTrue();
-        viewModel.PrebuiltCommands[0].Label.ShouldBe("Grammatik");
+        // The label is UI and English; the command text is a prompt about German dictation.
+        viewModel.PrebuiltCommands[0].Label.ShouldBe("Grammar");
         viewModel.PrebuiltCommands[0].Text.ShouldContain("Grammatik");
     }
 

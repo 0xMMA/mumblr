@@ -40,7 +40,10 @@ public sealed class MumblrConfig
     {
         new PrebuiltCommand
         {
-            Label = "Grammatik",
+            // The label is UI, so it is English like every other control. The command text is not
+            // UI - it is a prompt about German dictation, and it stays in the language of the
+            // text it operates on.
+            Label = "Grammar",
             Text = "Mach Grammatik, Satzbau und Satzordnung ordentlich. Am Inhalt nichts ändern.",
         },
     };
