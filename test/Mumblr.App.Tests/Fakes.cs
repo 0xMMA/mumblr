@@ -261,3 +261,17 @@ public sealed class FakeClaudeRunner : IClaudeCommandRunner
                ?? new CommandResult(true, "Removed the last sentence.", "{}", TimeSpan.FromSeconds(9));
     }
 }
+
+public sealed class FakeAttention : Mumblr.App.Attention.IAttentionService
+{
+    public bool Wanted { get; private set; }
+    public int Begins { get; private set; }
+
+    public void Begin()
+    {
+        Begins++;
+        Wanted = true;
+    }
+
+    public void End() => Wanted = false;
+}

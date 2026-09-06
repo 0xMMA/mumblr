@@ -7,6 +7,7 @@ using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using AvaloniaEdit;
 using AvaloniaEdit.Highlighting;
+using Mumblr.App.Attention;
 using Mumblr.App.ViewModels;
 
 namespace Mumblr.App.Views;
@@ -15,15 +16,20 @@ namespace Mumblr.App.Views;
 /// Hosts the AvaloniaEdit buffer and exposes it to the view model through <see cref="IEditorHost"/>.
 /// The lock and the insert marker are decided in the view model; this class only carries them out.
 /// </summary>
-public partial class MainWindow : Window, IEditorHost
+public partial class MainWindow : Window, IEditorHost, IAttentionService
 {
     private TextEditor? editor;
+    private readonly WindowAttention attention;
 
     public event Action? TextChanged;
 
     public MainWindow()
     {
         InitializeComponent();
+
+        attention = new WindowAttention(() => IsActive, flashing => TaskbarFlash.Set(this, flashing));
+        Activated += (_, _) => attention.WindowActivated();
+        Deactivated += (_, _) => attention.WindowDeactivated();
 
         var commandButton = this.FindControl<Button>("CommandButton");
         if (commandButton is not null)
@@ -100,6 +106,10 @@ public partial class MainWindow : Window, IEditorHost
         editor.CaretOffset = end;
         editor.ScrollToLine(editor.Document.GetLineByOffset(end).LineNumber);
     }
+
+    public void Begin() => attention.Begin();
+
+    public void End() => attention.End();
 
     public async Task<bool> CopyToClipboardAsync(string text)
     {

@@ -21,6 +21,7 @@ public sealed class MainViewModelTests : IDisposable
     private readonly FakeSttEngineFactory engines = new();
     private readonly FakeClaudeRunner claude = new();
     private readonly FakeUpdateService updates = new();
+    private readonly FakeAttention attention = new();
     private readonly ConfigStore configStore;
     private readonly MumblrConfig config;
     private MainViewModel? viewModel;
@@ -39,7 +40,7 @@ public sealed class MainViewModelTests : IDisposable
 
     private MainViewModel CreateViewModel()
     {
-        viewModel = new MainViewModel(workspace, editor, configStore, devices, capture, hotkeys, claude, engines, updates);
+        viewModel = new MainViewModel(workspace, editor, configStore, devices, capture, hotkeys, claude, engines, updates, attention);
         viewModel.Initialize();
         return viewModel;
     }
@@ -1104,6 +1105,52 @@ public sealed class MainViewModelTests : IDisposable
 
         claude.Calls.Count.ShouldBe(1);
         editor.Text.ShouldBe("Erster Satz.");
+    }
+
+    // ---------------------------------------------------------------- attention
+
+    [AvaloniaFact]
+    public async Task Recording_asks_for_attention_and_stopping_releases_it()
+    {
+        var viewModel = CreateViewModel();
+
+        await viewModel.ToggleRecordingCommand.ExecuteAsync(null);
+        attention.Wanted.ShouldBeTrue();
+        viewModel.WindowTitle.ShouldBe("\u25CF Recording - mumblr");
+
+        await viewModel.ToggleRecordingCommand.ExecuteAsync(null);
+        attention.Wanted.ShouldBeFalse();
+        viewModel.WindowTitle.ShouldBe("mumblr");
+    }
+
+    [AvaloniaFact]
+    public async Task A_command_on_its_own_does_not_ask_for_attention()
+    {
+        // Claude working costs money too, but it ends on its own; the flash is for the one
+        // state only the user can end.
+        var viewModel = CreateViewModel();
+
+        await viewModel.RunPrebuiltCommand.ExecuteAsync(viewModel.PrebuiltCommands[0]);
+
+        attention.Begins.ShouldBe(0);
+        viewModel.WindowTitle.ShouldBe("mumblr");
+    }
+
+    [AvaloniaFact]
+    public async Task A_command_in_the_middle_of_a_recording_pauses_the_attention_and_resumes_it()
+    {
+        var viewModel = CreateViewModel();
+        await viewModel.ToggleRecordingCommand.ExecuteAsync(null);
+
+        hotkeys.PressCommandKey();
+        await PumpAsync();
+        viewModel.IsCommanding.ShouldBeTrue();
+        attention.Wanted.ShouldBeFalse();
+
+        hotkeys.ReleaseCommandKey();
+        await PumpAsync();
+        viewModel.IsRecording.ShouldBeTrue();
+        attention.Wanted.ShouldBeTrue();
     }
 
     public void Dispose()

@@ -38,3 +38,16 @@ Recording has to be visible from the taskbar, not only from inside the window.
 ## Out of scope
 - A recording time limit or auto-stop. Attention first; if the wallet still hurts after
   that, a limit is its own task.
+
+## Log
+- Three pieces: `WindowAttention` holds the focus logic (wanted between Begin and End, flash
+  exactly while wanted and not in front) and is tested without a window; `TaskbarFlash` is the
+  `FlashWindowEx` call, a no-op off Windows; `MainWindow` implements `IAttentionService` by
+  wiring its Activated/Deactivated events into the first and the second into the flasher. The
+  view model gets the service the way it gets the editor host - the window is both.
+- Begin/End hang off the Recording transitions in `RefreshState`, so a command in the middle of
+  a recording releases the attention while Claude works and takes it back when channel 1 resumes.
+  Commanding never flashes.
+- The title is a bound property (`WindowTitle`); the window test asserts the real `Window.Title`.
+- Windows by-hand check open: tab away during a recording, the button should flash and stay
+  highlighted; tab back, it should clear; stop while away, it should clear.

@@ -12,6 +12,7 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Mumblr.App.Audio;
+using Mumblr.App.Attention;
 using Mumblr.App.Hotkeys;
 using Mumblr.App.Updates;
 using Mumblr.Core.Audio;
@@ -39,6 +40,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private readonly IAudioDeviceEnumerator deviceEnumerator;
     private readonly IAudioCapture capture;
     private readonly IHotkeyService hotkeys;
+    private readonly IAttentionService attention;
     private readonly IClaudeCommandRunner claudeRunner;
     private readonly ISttEngineFactory engineFactory;
     private readonly IUpdateService updates;
@@ -90,7 +92,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private bool suppressConfigSave = true;
 
     public MainViewModel(string targetDirectory, IEditorHost editor)
-        : this(targetDirectory, editor, ConfigStore.Default(), CreateDeviceEnumerator(), CreateCapture(), CreateHotkeys())
+        : this(targetDirectory, editor, ConfigStore.Default(), CreateDeviceEnumerator(), CreateCapture(), CreateHotkeys(),
+            attention: editor as IAttentionService)
     {
     }
 
@@ -103,9 +106,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         IHotkeyService hotkeys,
         IClaudeCommandRunner? claudeRunner = null,
         ISttEngineFactory? engineFactory = null,
-        IUpdateService? updates = null)
+        IUpdateService? updates = null,
+        IAttentionService? attention = null)
     {
         this.updates = updates ?? new UpdateService();
+        this.attention = attention ?? new NullAttention();
         this.editor = editor;
         this.configStore = configStore;
         this.deviceEnumerator = deviceEnumerator;
@@ -183,6 +188,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private string hotkeyHint = string.Empty;
 
     private bool hotkeysEnabled;
+
+    /// <summary>What the taskbar button and Alt+Tab show. Recording has to be visible from other windows.</summary>
+    [ObservableProperty]
+    private string windowTitle = "mumblr";
 
     [ObservableProperty]
     private string updateVersion = string.Empty;
@@ -1137,7 +1146,14 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     private void RefreshState()
     {
-        IsRecording = machine.State == SessionState.Recording;
+        var recording = machine.State == SessionState.Recording;
+        if (recording && !IsRecording)
+            attention.Begin();
+        else if (!recording && IsRecording)
+            attention.End();
+
+        IsRecording = recording;
+        WindowTitle = recording ? "\u25CF Recording - mumblr" : "mumblr";
         IsCommanding = machine.State == SessionState.Commanding;
         StateLabel = machine.State switch
         {

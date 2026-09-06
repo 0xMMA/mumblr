@@ -5,7 +5,7 @@
         xmlns:cfg="using:Mumblr.Core.Config"
         x:Class="Mumblr.App.Views.MainWindow"
         x:DataType="vm:MainViewModel"
-        Title="mumblr"
+        Title="{Binding WindowTitle}"
         Icon="avares://mumblr/Assets/mumblr.png"
         Width="1180" Height="720"
         MinWidth="1040" MinHeight="480"

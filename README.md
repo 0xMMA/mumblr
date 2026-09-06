@@ -91,6 +91,10 @@ Exactly one writer at a time:
 
 Starting a command while recording pauses channel 1 and resumes it when the command is done.
 
+While recording, the window title says so and the taskbar button flashes whenever mumblr is not
+the window in front. A recording forgotten behind the IDE keeps the microphone open and the meter
+running; the flash is for the one state only you can end.
+
 ## Setup
 
 The ElevenLabs key comes from the environment only, never from a config file or the repo:

@@ -12,6 +12,10 @@ repository if the version button reports that it could not reach one.
 
 ### Changed in 0.2.0
 
+- **A running recording is visible from the taskbar.** The title reads "● Recording - mumblr" and
+  the taskbar button flashes whenever the window is not in front, until you come back or stop.
+  Tab into the IDE, get absorbed, and the recording no longer runs on unnoticed by the minute.
+
 - **One click turns the global hotkeys off.** The hotkeys work while another window has focus by
   design, so a chord that collides with a game, a screen share or another tool could start a
   recording in the background. The **hotkeys** toggle in the status bar unregisters every chord

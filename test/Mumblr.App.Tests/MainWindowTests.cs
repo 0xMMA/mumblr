@@ -101,6 +101,20 @@ public sealed class MainWindowTests : IDisposable
         button.IsEffectivelyEnabled.ShouldBeTrue();
     }
 
+    [AvaloniaFact]
+    public async Task The_window_title_carries_the_recording_state()
+    {
+        // The title is what the taskbar button and Alt+Tab show.
+        var (window, viewModel) = Open();
+        window.Title.ShouldBe("mumblr");
+
+        await viewModel.ToggleRecordingCommand.ExecuteAsync(null);
+        window.Title.ShouldBe("\u25CF Recording - mumblr");
+
+        await viewModel.ToggleRecordingCommand.ExecuteAsync(null);
+        window.Title.ShouldBe("mumblr");
+    }
+
     public void Dispose()
     {
         viewModel?.Shutdown();
