@@ -60,7 +60,13 @@ public sealed partial class Win32HotkeyService : IHotkeyService
             return;
         }
 
-        Stop();
+        // A thread that did not go away would run its Cleanup over the registrations made below -
+        // unhook the new hook, free the new class name. Refusing to start is the safe answer.
+        if (!Stop())
+        {
+            RegistrationFailed?.Invoke("The previous hotkey thread did not stop - restart mumblr before turning the hotkeys back on.");
+            return;
+        }
 
         thread = new Thread(() => Run(config))
         {
@@ -74,6 +80,8 @@ public sealed partial class Win32HotkeyService : IHotkeyService
 
     private void Run(HotkeyConfig config)
     {
+        commandKeyIsDown = false;
+
         try
         {
             threadId = GetCurrentThreadId();

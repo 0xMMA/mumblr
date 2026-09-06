@@ -11,8 +11,8 @@ using System.Threading.Tasks;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Mumblr.App.Audio;
 using Mumblr.App.Attention;
+using Mumblr.App.Audio;
 using Mumblr.App.Hotkeys;
 using Mumblr.App.Updates;
 using Mumblr.Core.Audio;
@@ -260,9 +260,17 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     public bool CanRevert => snapshots.CanRevert && machine.State != SessionState.Commanding;
 
-    /// <summary>Something was said, nobody is writing, and the buffer is no longer what was said.</summary>
+    /// <summary>
+    /// Something was said, nobody is writing, and the buffer is no longer what was said. Compared
+    /// word by word: raw joins takes with a paragraph break and the buffer with a space, and that
+    /// is not a difference anyone dictated.
+    /// </summary>
     public bool CanRestoreRaw =>
-        document is { RawText.Length: > 0 } && machine.State == SessionState.Idle && editor.Text != document.RawText;
+        document is { RawText.Length: > 0 } && machine.State == SessionState.Idle && !SameWords(editor.Text, document.RawText);
+
+    private static bool SameWords(string a, string b) =>
+        a.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)
+            .SequenceEqual(b.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
 
     /// <summary>
     /// The kill switch for the global hotkeys. The status bar button flips it through
@@ -296,15 +304,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             config.Hotkeys.Enabled = value;
             Inform(value ? "Hotkeys on." : "Hotkeys off. Nothing outside this window can start a recording.");
             ApplyHotkeys();
-
-            try
-            {
-                configStore.Save(config);
-            }
-            catch (Exception ex)
-            {
-                Warn($"Hotkeys are {(value ? "on" : "off")}, but the config could not be saved: {ex.Message}");
-            }
+            TrySaveConfig();
         }
     }
 
@@ -646,14 +646,23 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             if (text.Length == 0)
                 continue;
 
-            document?.AppendRaw(text);
-
             var offset = Math.Clamp(insertOffset, 0, editor.Text.Length);
             var separator = NeedsSeparator(editor.Text, offset) ? " " : string.Empty;
             var chunk = separator + text;
 
             editor.Insert(offset, chunk);
             insertOffset = offset + chunk.Length;
+
+            // After the buffer, never before it: a raw file that cannot be written must not cost
+            // the dictation a segment, and a throw here would drop every later one in the queue.
+            try
+            {
+                document?.AppendRaw(text);
+            }
+            catch (Exception ex)
+            {
+                Warn($"The raw dictation file could not be written: {ex.Message}");
+            }
         }
 
         PreviewText = string.Empty;
@@ -995,10 +1004,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         document.Flush(raw);
         insertOffset = raw.Length;
 
+        // Source stays empty: that slot names the prebuilt button that fired, and this never went
+        // anywhere near Claude.
         CommandLog.Insert(0, new CommandLogItem
         {
             CommandText = label,
-            Source = "Raw",
             Status = CommandStatus.Succeeded,
             Response = "The buffer is what speech-to-text produced again. Revert brings the previous text back.",
         });
@@ -1148,7 +1158,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         config.MicrophoneDeviceId = value.Id;
         config.MicrophoneDeviceName = value.Name;
-        configStore.Save(config);
+        TrySaveConfig();
     }
 
     /// <summary>Rebuilds the picker from the config and selects what the config names. Callers suppress saving.</summary>
@@ -1157,7 +1167,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         Languages.Clear();
         Languages.Add(AutoLanguage);
 
-        foreach (var code in config.Stt.Languages.Select(code => code.Trim()).Where(code => code.Length > 0))
+        foreach (var code in (config.Stt.Languages ?? []).Select(code => code?.Trim() ?? string.Empty).Where(code => code.Length > 0))
             if (!Languages.Contains(code))
                 Languages.Add(code);
 
@@ -1179,7 +1189,23 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             return;
 
         config.Stt.LanguageCode = IsAutoLanguage(value) ? null : value.Trim();
-        configStore.Save(config);
+        TrySaveConfig();
+    }
+
+    /// <summary>
+    /// A setting that cannot be persisted still applies to this session; the user is told rather
+    /// than crashed. The config folder being read-only or locked is rare, and not worth the app.
+    /// </summary>
+    private void TrySaveConfig()
+    {
+        try
+        {
+            configStore.Save(config);
+        }
+        catch (Exception ex)
+        {
+            Warn($"Applied, but the config could not be saved: {ex.Message}");
+        }
     }
 
     partial void OnSelectedSttModeChanged(SttMode value)
@@ -1190,7 +1216,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             return;
 
         config.SttMode = value;
-        configStore.Save(config);
+        TrySaveConfig();
     }
 
     partial void OnPreviewTextChanged(string value) => OnPropertyChanged(nameof(HasPreview));
@@ -1235,14 +1261,18 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
     });
 
+    /// <summary>Edge memory for the attention calls. Its own field: IsRecording has a public setter.</summary>
+    private bool wasRecording;
+
     private void RefreshState()
     {
         var recording = machine.State == SessionState.Recording;
-        if (recording && !IsRecording)
+        if (recording && !wasRecording)
             attention.Begin();
-        else if (!recording && IsRecording)
+        else if (!recording && wasRecording)
             attention.End();
 
+        wasRecording = recording;
         IsRecording = recording;
         WindowTitle = recording ? "\u25CF Recording - mumblr" : "mumblr";
         IsCommanding = machine.State == SessionState.Commanding;
@@ -1275,6 +1305,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     public void Shutdown()
     {
+        attention.End();
+
         try
         {
             capture.Stop();

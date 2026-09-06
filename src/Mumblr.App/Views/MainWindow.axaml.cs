@@ -107,9 +107,10 @@ public partial class MainWindow : Window, IEditorHost, IAttentionService
         editor.ScrollToLine(editor.Document.GetLineByOffset(end).LineNumber);
     }
 
-    public void Begin() => attention.Begin();
+    // Explicit: Begin and End next to Show and Close on a Window say nothing on their own.
+    void IAttentionService.Begin() => attention.Begin();
 
-    public void End() => attention.End();
+    void IAttentionService.End() => attention.End();
 
     public async Task<bool> CopyToClipboardAsync(string text)
     {

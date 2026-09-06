@@ -38,6 +38,16 @@ public sealed class MainViewModelTests : IDisposable
         configStore.Save(config);
     }
 
+    /// <summary>
+    /// A directory where the file should be: the atomic save cannot move over it on any platform.
+    /// (A read-only attribute would do on Windows only; Linux lets a rename replace such a file.)
+    /// </summary>
+    private void MakeConfigUnwritable()
+    {
+        File.Delete(configStore.ConfigPath);
+        Directory.CreateDirectory(configStore.ConfigPath);
+    }
+
     private MainViewModel CreateViewModel()
     {
         viewModel = new MainViewModel(workspace, editor, configStore, devices, capture, hotkeys, claude, engines, updates, attention);
@@ -965,21 +975,14 @@ public sealed class MainViewModelTests : IDisposable
     {
         // The switch is a privacy control: "off" must mean off even when persisting it fails.
         var viewModel = CreateViewModel();
-        File.SetAttributes(configStore.ConfigPath, FileAttributes.ReadOnly);
+        MakeConfigUnwritable();
 
-        try
-        {
-            viewModel.HotkeysEnabled = false;
+        viewModel.HotkeysEnabled = false;
 
-            hotkeys.Stops.ShouldBe(1);
-            viewModel.HotkeysEnabled.ShouldBeFalse();
-            viewModel.HotkeyHint.ShouldBe("hotkeys off");
-            viewModel.IsWarning.ShouldBeTrue();
-        }
-        finally
-        {
-            File.SetAttributes(configStore.ConfigPath, FileAttributes.Normal);
-        }
+        hotkeys.Stops.ShouldBe(1);
+        viewModel.HotkeysEnabled.ShouldBeFalse();
+        viewModel.HotkeyHint.ShouldBe("hotkeys off");
+        viewModel.IsWarning.ShouldBeTrue();
     }
 
     [AvaloniaFact]
@@ -1117,11 +1120,24 @@ public sealed class MainViewModelTests : IDisposable
 
         await viewModel.ToggleRecordingCommand.ExecuteAsync(null);
         attention.Wanted.ShouldBeTrue();
+        attention.Begins.ShouldBe(1);
         viewModel.WindowTitle.ShouldBe("\u25CF Recording - mumblr");
 
         await viewModel.ToggleRecordingCommand.ExecuteAsync(null);
         attention.Wanted.ShouldBeFalse();
+        attention.Begins.ShouldBe(1);
         viewModel.WindowTitle.ShouldBe("mumblr");
+    }
+
+    [AvaloniaFact]
+    public async Task Shutting_down_during_a_recording_releases_the_attention()
+    {
+        var viewModel = CreateViewModel();
+        await viewModel.ToggleRecordingCommand.ExecuteAsync(null);
+
+        viewModel.Shutdown();
+
+        attention.Wanted.ShouldBeFalse();
     }
 
     [AvaloniaFact]
@@ -1195,7 +1211,9 @@ public sealed class MainViewModelTests : IDisposable
 
         editor.Text.ShouldBe("Eins zwei.");
         File.ReadAllText(viewModel.DocumentPath).ShouldBe("Eins zwei.");
-        viewModel.CommandLog[0].Source.ShouldBe("Raw");
+        // Not a prebuilt command and never sent to Claude, so the "prebuilt:" slot stays empty.
+        viewModel.CommandLog[0].Source.ShouldBeEmpty();
+        viewModel.CommandLog[0].CommandText.ShouldContain("raw");
         viewModel.CommandLog[0].Status.ShouldBe(CommandStatus.Succeeded);
         viewModel.CanRestoreRaw.ShouldBeFalse();
 
@@ -1217,6 +1235,39 @@ public sealed class MainViewModelTests : IDisposable
 
         editor.Text = "Gesagt. Getippt.";
         viewModel.CanRestoreRaw.ShouldBeTrue();
+    }
+
+    [AvaloniaFact]
+    public async Task Raw_is_not_offered_when_the_buffer_differs_only_by_take_separators()
+    {
+        // Raw joins takes with a paragraph break, the buffer with a space; that is not "no longer
+        // what was said".
+        var viewModel = CreateViewModel();
+
+        await DictateAsync(viewModel, "eins");
+        await DictateAsync(viewModel, "zwei");
+
+        editor.Text.ShouldBe("eins zwei");
+        File.ReadAllText(RawPath).ShouldBe("eins\n\nzwei");
+        viewModel.CanRestoreRaw.ShouldBeFalse();
+    }
+
+    [AvaloniaFact]
+    public async Task A_raw_write_failure_warns_and_keeps_the_segment_in_the_buffer()
+    {
+        var viewModel = CreateViewModel();
+        Directory.CreateDirectory(RawPath); // a directory where the raw file should go
+
+        await viewModel.ToggleRecordingCommand.ExecuteAsync(null);
+        engines.Last!.Commit("eins");
+        await PumpAsync();
+
+        editor.Text.ShouldBe("eins");
+        viewModel.IsWarning.ShouldBeTrue();
+        viewModel.StatusMessage.ShouldContain("raw");
+
+        await viewModel.ToggleRecordingCommand.ExecuteAsync(null);
+        viewModel.IsRecording.ShouldBeFalse();
     }
 
     [AvaloniaFact]
@@ -1313,6 +1364,30 @@ public sealed class MainViewModelTests : IDisposable
     }
 
     [AvaloniaFact]
+    public void A_null_language_list_in_the_config_does_not_stop_the_app()
+    {
+        config.Stt.Languages = null!;
+        configStore.Save(config);
+
+        var viewModel = CreateViewModel();
+
+        viewModel.Languages.ShouldBe(["auto", "de", "en"]);
+    }
+
+    [AvaloniaFact]
+    public void A_config_save_failure_on_a_device_change_warns_instead_of_crashing()
+    {
+        devices.Devices.Add(new Mumblr.Core.Audio.AudioDeviceInfo("dev-2", "Webcam"));
+        var viewModel = CreateViewModel();
+        MakeConfigUnwritable();
+
+        viewModel.SelectedDevice = viewModel.Devices.Single(device => device.Id == "dev-2");
+
+        viewModel.SelectedDevice!.Id.ShouldBe("dev-2");
+        viewModel.IsWarning.ShouldBeTrue();
+    }
+
+    [AvaloniaFact]
     public void An_unknown_configured_code_is_offered_as_is()
     {
         config.Stt.LanguageCode = "fr";
@@ -1350,7 +1425,6 @@ public sealed class MainViewModelTests : IDisposable
         Environment.SetEnvironmentVariable(ApiKeyProvider.PrimaryVariable, null);
         Environment.SetEnvironmentVariable(ApiKeyProvider.FallbackVariable, null);
 
-        if (Directory.Exists(workspace))
-            Directory.Delete(workspace, recursive: true);
+        TestDirectories.Delete(workspace);
     }
 }

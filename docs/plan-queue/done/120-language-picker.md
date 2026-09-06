@@ -53,3 +53,7 @@ call.
 - Rebuilding the list on config reload pushes a null through the ComboBox binding; the change
   handler treats null as "not a choice" and the rebuild runs under the save suppression.
 - Windows by-hand check open: the toolbar at 1160 px with a long microphone name.
+- Review: a hand-written "auto" or a padded code went on the wire as-is; the session options
+  factory now maps blank and auto to unset and trims the rest. The picker governs spoken commands
+  too (the command clip reads the same setting) - tooltip, README and release notes say so now.
+  A null `languages` list no longer stops the app; nulls anywhere in the config mean the default.

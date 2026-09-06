@@ -69,10 +69,41 @@ public sealed class ConfigMigrationTests : IDisposable
             .ShouldBe(shipped.Select(command => (command.Label, command.Text)));
     }
 
-    [Fact]
-    public void The_English_grammar_only_list_becomes_the_current_shipped_list()
+    [Theory]
+    [InlineData("""{"claude":null}""")]
+    [InlineData("""{"claude":{"headerPrompt":null}}""")]
+    [InlineData("""{"prebuiltCommands":null}""")]
+    [InlineData("""{"stt":{"languages":null},"keyterms":null,"dictionary":null,"hotkeys":null}""")]
+    public void A_hand_edited_null_means_the_default_and_never_throws(string json)
     {
-        // What 0.2.0 wrote before the Prompt button existed.
+        // The Config button invites hand editing, and "x": null is what an editor leaves behind.
+        File.WriteAllText(path, json);
+
+        var config = new ConfigStore(path).Load();
+
+        config.Claude.HeaderPrompt.ShouldBe(ClaudeConfig.DefaultHeaderPrompt);
+        config.PrebuiltCommands.Select(command => command.Label).ShouldBe(["Grammar", "Prompt"]);
+        config.Stt.Languages.ShouldBe(["de", "en"]);
+        config.Keyterms.ShouldNotBeNull();
+        config.Dictionary.ShouldNotBeNull();
+        config.Hotkeys.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public void A_null_entry_in_the_command_list_is_dropped()
+    {
+        File.WriteAllText(path, """{"prebuiltCommands":[null,{"label":"Shorter","text":"Halve it."}]}""");
+
+        var config = new ConfigStore(path).Load();
+
+        config.PrebuiltCommands.Select(command => command.Label).ShouldBe(["Shorter"]);
+    }
+
+    [Fact]
+    public void A_list_holding_only_the_current_grammar_text_gains_the_prompt_button()
+    {
+        // What 0.2.0 wrote before the Prompt button existed - derived from the current Grammar text,
+        // so this pins the rule, not the historic wording.
         var grammar = new MumblrConfig().PrebuiltCommands.Single(command => command.Label == "Grammar");
         var config = LoadFrom(new { prebuiltCommands = new[] { new { label = grammar.Label, text = grammar.Text } } });
 

@@ -27,7 +27,7 @@ public static class SttSessionOptionsFactory
         ModelId = mode == SttMode.Realtime ? config.Stt.RealtimeModelId : config.Stt.BatchModelId,
         Keyterms = config.Keyterms,
         NoVerbatim = config.Stt.NoVerbatim,
-        LanguageCode = config.Stt.LanguageCode,
+        LanguageCode = LanguageOrNull(config.Stt.LanguageCode),
         BaseUrl = config.Stt.BaseUrl,
         VadSilenceThresholdSecs = config.Stt.VadSilenceThresholdSecs,
         KeytermsEncoding = config.Stt.KeytermsEncoding,
@@ -39,8 +39,17 @@ public static class SttSessionOptionsFactory
         ModelId = config.Stt.BatchModelId,
         Keyterms = config.Keyterms,
         NoVerbatim = true,
-        LanguageCode = config.Stt.LanguageCode,
+        LanguageCode = LanguageOrNull(config.Stt.LanguageCode),
         BaseUrl = config.Stt.BaseUrl,
         KeytermsEncoding = config.Stt.KeytermsEncoding,
     };
+
+    /// <summary>"auto" is a picker value, never a language code; a hand-written one must not reach the wire.</summary>
+    private static string? LanguageOrNull(string? code)
+    {
+        var trimmed = code?.Trim();
+        return string.IsNullOrEmpty(trimmed) || string.Equals(trimmed, "auto", StringComparison.OrdinalIgnoreCase)
+            ? null
+            : trimmed;
+    }
 }

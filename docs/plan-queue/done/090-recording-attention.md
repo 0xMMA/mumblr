@@ -51,3 +51,8 @@ Recording has to be visible from the taskbar, not only from inside the window.
 - The title is a bound property (`WindowTitle`); the window test asserts the real `Window.Title`.
 - Windows by-hand check open: tab away during a recording, the button should flash and stay
   highlighted; tab back, it should clear; stop while away, it should clear.
+- Review: Shutdown now releases the attention; the edge memory is a private field rather than
+  the public `IsRecording` setter; `Begin`/`End` are explicit interface members on the window.
+  Pre-existing state bug surfaced as a new symptom - a hold key pressed inside the stop's pause
+  window keeps the recording alive after Stop and the flash starts again - filed as an issue
+  rather than patched here.

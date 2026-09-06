@@ -20,9 +20,11 @@ public sealed class DictationDocument
     public string WavPath { get; }
 
     /// <summary>
-    /// What speech-to-text produced, and only that. Commands rewrite the markdown in place and
-    /// revert is one step at a time; this file is the words as spoken, whatever ran over them.
-    /// Nothing an LLM wrote ever lands here.
+    /// What speech-to-text produced (after the dictionary pass), and only that. Commands rewrite
+    /// the markdown in place and revert is one step at a time; this file is the words as spoken,
+    /// whatever ran over them. Nothing an LLM wrote ever lands here - and the file is read-only
+    /// on disk between appends, because Claude has Edit rights in this folder and a prompt is
+    /// not a guarantee.
     /// </summary>
     public string RawPath { get; }
 
@@ -59,7 +61,10 @@ public sealed class DictationDocument
     /// </summary>
     public void BeginTake() => takePending = true;
 
-    /// <summary>Appends one committed segment, after the dictionary pass. The file appears on first use.</summary>
+    /// <summary>
+    /// Appends one committed segment. The file appears on first use. Throws when the disk does;
+    /// the in-memory mirror changes only after the write, so the two never disagree.
+    /// </summary>
     public void AppendRaw(string text)
     {
         if (text.Length == 0)
@@ -69,11 +74,15 @@ public sealed class DictationDocument
             : takePending ? "\n\n"
             : char.IsWhiteSpace(RawText[^1]) ? string.Empty
             : " ";
-        takePending = false;
-
         var chunk = separator + text;
-        RawText += chunk;
+
+        if (File.Exists(RawPath))
+            File.SetAttributes(RawPath, FileAttributes.Normal);
         File.AppendAllText(RawPath, chunk);
+        File.SetAttributes(RawPath, FileAttributes.ReadOnly);
+
+        takePending = false;
+        RawText += chunk;
     }
 
     /// <summary>Writes the in-memory buffer to disk. Called on every state change and on copy.</summary>

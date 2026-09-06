@@ -14,7 +14,7 @@ repository if the version button reports that it could not reach one.
 
 - **Pick the transcription language in the window.** A LANG picker next to the STT mode offers
   auto and the codes from `stt.languages` (de and en to start with) and applies to the next
-  recording. The status bar shows the pick whenever it is not auto.
+  recording and to spoken commands. The status bar shows the pick whenever it is not auto.
 
 - **The Prompt button.** The tagline promised a prompt and the tool delivered a transcript. The
   second shipped button shapes the dictation into a prompt for a coding agent - the ask first,
@@ -23,7 +23,8 @@ repository if the version button reports that it could not reach one.
   not say.
 
 - **The raw dictation is always one click away.** Everything speech-to-text produces is also
-  appended to `dictated-<timestamp>.raw.md`, which no command ever touches. The **Raw** button
+  appended to `dictated-<timestamp>.raw.md`, which is read-only on disk so no command can touch
+  it. The **Raw** button
   next to Revert puts it back into the buffer, whatever the commands did since - snapshotted
   first, so Revert undoes that too.
 

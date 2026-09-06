@@ -71,7 +71,7 @@
                               SelectedItem="{Binding SelectedLanguage}"
                               MinWidth="72"
                               IsEnabled="{Binding !IsRecording}"
-                              ToolTip.Tip="Transcription language for the next recording. auto lets Scribe detect it; stt.languages in the config is the list offered here." />
+                              ToolTip.Tip="Transcription language for the next recording and for spoken commands. auto lets Scribe detect it; stt.languages in the config is the list offered here." />
                 </StackPanel>
 
                 <Button Grid.Column="7" Content="Copy" Command="{Binding CopyCommand}" />

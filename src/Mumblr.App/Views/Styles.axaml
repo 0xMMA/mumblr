@@ -84,6 +84,9 @@
     <Style Selector="Button.off /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Foreground" Value="{StaticResource WorkingBrush}" />
     </Style>
+    <Style Selector="Button.on:disabled /template/ ContentPresenter#PART_ContentPresenter, Button.off:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Foreground" Value="{StaticResource TextDimBrush}" />
+    </Style>
 
     <Style Selector="Button.primary">
         <Setter Property="MinWidth" Value="92" />

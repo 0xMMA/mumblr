@@ -121,7 +121,6 @@ public sealed class MainWindowTests : IDisposable
         window?.Close();
         Environment.SetEnvironmentVariable(ApiKeyProvider.PrimaryVariable, null);
 
-        if (Directory.Exists(workspace))
-            Directory.Delete(workspace, recursive: true);
+        TestDirectories.Delete(workspace);
     }
 }

@@ -29,7 +29,7 @@ public sealed class ConfigStore
         if (!File.Exists(ConfigPath))
         {
             var fresh = new MumblrConfig();
-            Save(fresh);
+            TrySave(fresh);
             return fresh;
         }
 
@@ -43,6 +43,11 @@ public sealed class ConfigStore
 
             return config;
         }
+        catch (Exception ex) when (ex is not JsonException)
+        {
+            // Same rule as below, for whatever the repair or the write-back did not foresee.
+            return new MumblrConfig();
+        }
         catch (JsonException)
         {
             // A broken config must never stop the app from recording.
@@ -50,24 +55,40 @@ public sealed class ConfigStore
         }
     }
 
-    /// <summary>A migration that cannot be written back still applies in memory; the app starts.</summary>
+    /// <summary>A default or a migration that cannot be written back still applies in memory; the app starts.</summary>
     private void TrySave(MumblrConfig config)
     {
         try
         {
             Save(config);
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        catch (Exception)
         {
         }
     }
 
+    /// <summary>
+    /// Written to a sibling file and moved into place, so a second mumblr instance reading the
+    /// config at the same moment sees the old file or the new one, never a truncated one - which
+    /// would deserialize as broken, load as defaults, and be saved back over the user's settings.
+    /// </summary>
     public void Save(MumblrConfig config)
     {
         var dir = Path.GetDirectoryName(ConfigPath);
         if (!string.IsNullOrEmpty(dir))
             Directory.CreateDirectory(dir);
 
-        File.WriteAllText(ConfigPath, JsonSerializer.Serialize(config, Options));
+        var temporary = ConfigPath + ".tmp";
+        File.WriteAllText(temporary, JsonSerializer.Serialize(config, Options));
+
+        try
+        {
+            File.Move(temporary, ConfigPath, overwrite: true);
+        }
+        catch
+        {
+            File.Delete(temporary);
+            throw;
+        }
     }
 }

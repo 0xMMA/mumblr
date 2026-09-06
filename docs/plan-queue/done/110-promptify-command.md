@@ -77,3 +77,6 @@ facts, change the language.
   Fine for a German author; the live test accepts either.
 - The English-only Grammar list that 0.2.0-pre wrote is now a legacy fingerprint in
   `ConfigMigration`, so a config from between the two commits picks up the Prompt button too.
+- Review: the header prompt's "decide rather than ask" and the Prompt command's "resolve none of
+  them silently" pull in different directions on paper; the live run shows the command wins, as
+  the header's "do what the command asks" intends. Left as is, with the live test as the tripwire.

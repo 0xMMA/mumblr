@@ -32,7 +32,13 @@ public sealed class FakeEditorHost : IEditorHost
     public bool IsReadOnly { get; set; }
     public string? Clipboard { get; private set; }
 
-    public void Insert(int offset, string text) => Text = Text.Insert(Math.Clamp(offset, 0, Text.Length), text);
+    /// <summary>Like the real host, the caret ends up after the insert - the next take starts there.</summary>
+    public void Insert(int offset, string text)
+    {
+        var at = Math.Clamp(offset, 0, Text.Length);
+        Text = Text.Insert(at, text);
+        CaretOffset = at + text.Length;
+    }
 
     /// <summary>Stands in for a keystroke: the user editing the buffer, not mumblr writing to it.</summary>
     public void Type(string appended) => Text += appended;
@@ -274,4 +280,19 @@ public sealed class FakeAttention : Mumblr.App.Attention.IAttentionService
     }
 
     public void End() => Wanted = false;
+}
+
+/// <summary>Deletes a test directory that may hold read-only files - Windows refuses those otherwise.</summary>
+public static class TestDirectories
+{
+    public static void Delete(string directory)
+    {
+        if (!Directory.Exists(directory))
+            return;
+
+        foreach (var file in Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories))
+            File.SetAttributes(file, FileAttributes.Normal);
+
+        Directory.Delete(directory, recursive: true);
+    }
 }

@@ -57,3 +57,10 @@ markdown and the wav, and a button that puts it back into the buffer.
   snapshot taken first means Revert brings it back, which the test proves.
 - Raw writes a command log entry of its own (source "Raw") so the log tells the story, and the
   snapshot label equals the entry's text, which is how Revert marks the right entry as reverted.
+- Review: the raw write happens after the buffer insert and inside a guard, so a disk that
+  refuses it costs a warning, not a segment and not the whole drain. The document writes first
+  and mutates its mirror after. The file is read-only between appends - Claude has Edit rights in
+  the folder, and a prompt is not a guarantee. `CanRestoreRaw` compares words, not bytes: raw
+  joins takes with a paragraph break and the buffer with a space. The log entry no longer says
+  "prebuilt: Raw". The fake editor now moves the caret like the real one, which is what had
+  hidden the separator mismatch.

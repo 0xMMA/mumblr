@@ -1,6 +1,35 @@
+using Mumblr.Core.Config;
 using Mumblr.Core.Stt;
 
 namespace Mumblr.Core.Tests;
+
+public class SttSessionOptionsFactoryTests
+{
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("  ")]
+    [InlineData("auto")]
+    [InlineData("AUTO")]
+    public void Auto_and_blank_language_codes_are_not_sent(string? code)
+    {
+        // "auto" is a picker value, never a language code; a hand-written one must not reach the wire.
+        var config = new MumblrConfig();
+        config.Stt.LanguageCode = code;
+
+        SttSessionOptionsFactory.ForRecording(config, SttMode.Realtime).LanguageCode.ShouldBeNull();
+        SttSessionOptionsFactory.ForCommandClip(config).LanguageCode.ShouldBeNull();
+    }
+
+    [Fact]
+    public void A_padded_language_code_is_trimmed()
+    {
+        var config = new MumblrConfig();
+        config.Stt.LanguageCode = " de ";
+
+        SttSessionOptionsFactory.ForRecording(config, SttMode.Batch).LanguageCode.ShouldBe("de");
+    }
+}
 
 public class RealtimeUriTests
 {

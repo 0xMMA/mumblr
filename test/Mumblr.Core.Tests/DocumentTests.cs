@@ -66,6 +66,31 @@ public class DictationDocumentTests : IDisposable
     }
 
     [Fact]
+    public void The_raw_file_is_read_only_between_appends()
+    {
+        // The one file that exists to recover from a bad command must not be editable by one.
+        var document = DictationDocument.Create(directory);
+
+        document.AppendRaw("eins");
+        (File.GetAttributes(document.RawPath) & FileAttributes.ReadOnly).ShouldBe(FileAttributes.ReadOnly);
+
+        document.AppendRaw("zwei");
+        File.ReadAllText(document.RawPath).ShouldBe("eins zwei");
+        (File.GetAttributes(document.RawPath) & FileAttributes.ReadOnly).ShouldBe(FileAttributes.ReadOnly);
+    }
+
+    [Fact]
+    public void A_failed_raw_write_leaves_the_in_memory_mirror_untouched()
+    {
+        var document = DictationDocument.Create(directory);
+        Directory.CreateDirectory(document.RawPath); // a directory where the file should go
+
+        Should.Throw<Exception>(() => document.AppendRaw("eins"));
+
+        document.RawText.ShouldBe(string.Empty);
+    }
+
+    [Fact]
     public void The_raw_file_does_not_exist_until_something_was_said()
     {
         var document = DictationDocument.Create(directory);
@@ -84,11 +109,7 @@ public class DictationDocumentTests : IDisposable
         document.Read().ShouldBe("erste Zeile");
     }
 
-    public void Dispose()
-    {
-        if (Directory.Exists(directory))
-            Directory.Delete(directory, recursive: true);
-    }
+    public void Dispose() => TestDirectories.Delete(directory);
 }
 
 public class SnapshotStoreTests

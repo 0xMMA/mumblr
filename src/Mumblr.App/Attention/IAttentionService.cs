@@ -12,15 +12,3 @@ public interface IAttentionService
     /// <summary>Attention no longer wanted; any flashing stops.</summary>
     void End();
 }
-
-/// <summary>For hosts that are not a window.</summary>
-internal sealed class NullAttention : IAttentionService
-{
-    public void Begin()
-    {
-    }
-
-    public void End()
-    {
-    }
-}
