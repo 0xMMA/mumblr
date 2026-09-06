@@ -7,19 +7,12 @@
 **Think out loud, get a prompt. Speech to markdown in the folder you start it from, with edits by
 voice through your local Claude Code.**
 
+[![ci](https://img.shields.io/github/actions/workflow/status/0xMMA/mumblr/ci.yml?branch=main&label=ci&style=flat-square)](https://github.com/0xMMA/mumblr/actions/workflows/ci.yml)
+[![release](https://img.shields.io/github/v/release/0xMMA/mumblr?label=release&style=flat-square)](https://github.com/0xMMA/mumblr/releases/latest)
 ![platform](https://img.shields.io/badge/platform-windows%20x64-2b6cb0?style=flat-square)
 ![stack](https://img.shields.io/badge/.NET%2010-Avalonia-512BD4?style=flat-square)
 
 [Releases](https://github.com/0xMMA/mumblr/releases) · [CI](https://github.com/0xMMA/mumblr/actions/workflows/ci.yml) · [Issues](https://github.com/0xMMA/mumblr/issues)
-
-<!--
-The repository is private, so no service can read its build status: shields.io answers
-"repo or workflow not found" and GitHub's own badge endpoint answers 404. Make the repo
-public and these two replace the static badges above:
-
-[![ci](https://img.shields.io/github/actions/workflow/status/0xMMA/mumblr/ci.yml?branch=main&label=ci&style=flat-square)](https://github.com/0xMMA/mumblr/actions/workflows/ci.yml)
-[![release](https://img.shields.io/github/v/release/0xMMA/mumblr?label=release&style=flat-square)](https://github.com/0xMMA/mumblr/releases/latest)
--->
 
 <img src="docs/assets/screenshot.png" width="920" alt="The mumblr window: dictation buffer on the left, command log on the right." />
 
@@ -48,9 +41,10 @@ mumblr .
 ```
 
 That creates `dictated-<timestamp>.md` in the current folder and opens a window. Next to it go
-`dictated-<timestamp>.wav`, the audio, and `dictated-<timestamp>.raw.md`, everything speech-to-text
-produced and nothing else. Talk, press stop, and the whole buffer is on your clipboard while the
-files stay on disk for any Claude Code session to read by path.
+`dictated-<timestamp>.wav`, the audio, and `dictated-<timestamp>.raw.md`, what speech-to-text
+produced (after the dictionary pass) and nothing an LLM wrote. Talk, press stop, and the whole
+buffer is on your clipboard while the files stay on disk for any Claude Code session to read by
+path.
 
 ## The two channels
 
@@ -65,7 +59,8 @@ both built, switchable in the UI:
 `no_verbatim` is on, so filler words and false starts are dropped inside the model. The language is
 auto-detected by default, which handles German with English technical terms out of the box; when a
 short take in another language throws the detection off, the **LANG** picker in the toolbar pins it
-for the next recording, and `stt.languages` in the config is the list it offers. Client side there
+for the next recording and for spoken commands, and `stt.languages` in the config is the list it
+offers. Client side there
 is a deterministic dictionary pass with no LLM involved (`clod code` -> `Claude Code`).
 
 **Channel 2 - commands.** Hold the command key, say what to change, let go. The clip goes through
@@ -75,7 +70,8 @@ sentence*, *replace X with Y*, *clean this up*, *turn this into a prompt*. Expec
 high effort. Nothing from this channel ever lands in the content file - it goes to the command log
 panel, and every call is snapshotted so you can revert it. Revert is one step at a time; **Raw**
 puts the dictation back exactly as it was transcribed, whatever the commands did since, and is
-itself revertible. The raw file is never touched by Claude.
+itself revertible. The raw file is read-only on disk between appends, so a command cannot edit
+it even though Claude has edit rights in the folder.
 
 Commands you say word for word every day belong on a button instead. `prebuiltCommands` in the
 config becomes a row of buttons above the log; clicking one skips the microphone and the STT round
