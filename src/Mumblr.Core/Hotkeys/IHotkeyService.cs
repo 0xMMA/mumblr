@@ -30,5 +30,12 @@ public interface IHotkeyService : IDisposable
     bool IsSupported { get; }
 
     void Start(HotkeyConfig config);
-    void Stop();
+
+    /// <summary>
+    /// Unregisters every chord and removes the keyboard hook. Safe before any Start and more than
+    /// once; the next Start begins from a clean state, hold-key state included. False means the
+    /// platform side would not go away - the hook may still be installed, and the caller has to
+    /// say so rather than report "off".
+    /// </summary>
+    bool Stop();
 }

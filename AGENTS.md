@@ -22,15 +22,19 @@ dotnet build
 dotnet test      # never touches the network
 ```
 
-The tests that talk to ElevenLabs cost money per run and are armed only by the gate:
+The tests that talk to ElevenLabs or spawn the real `claude` cost money per run and are armed
+only by the gate:
 
 ```
+MUMBLR_LIVE_TESTS=1 dotnet test --filter FullyQualifiedName~Live          # both
 MUMBLR_LIVE_TESTS=1 dotnet test --filter FullyQualifiedName~LiveElevenLabs
+MUMBLR_LIVE_TESTS=1 dotnet test --filter FullyQualifiedName~LiveClaude
 ```
 
 They exist because the rest of the suite can assert only what mumblr *sends*, never what
-ElevenLabs *accepts* — which is how a broken keyterm encoding shipped past a green build
-(issue #1). Arm them once after changing anything about a request.
+ElevenLabs *accepts* or what a model *does* with a prompt — which is how a broken keyterm
+encoding shipped past a green build (issue #1). Arm them once after changing a request or a
+shipped prompt.
 
 Everything targets plain `net10.0` and builds and tests on Linux. CI on `windows-latest` is the
 only real Windows verification — push before you believe a Windows-specific claim.
@@ -101,4 +105,7 @@ lines verbatim.
   to be renamed.
 - **`strings` reads ASCII by default and .NET literals are UTF-16.** Plain `strings` reports a
   shipped string as missing when it is there. Use `strings -el`.
+- **A shipped default lives on in every `config.json`.** The file is written in full on first
+  run, so a changed `DefaultHeaderPrompt` or prebuilt command reaches no existing install unless
+  `ConfigMigration` knows the fingerprint of the text being replaced. Add it in the same commit.
 - **Check CLI flags against `claude --help`,** never against memory.

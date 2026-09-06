@@ -60,6 +60,18 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     /// <summary>Guards the window inside PrepareCommandAsync where pausing channel 1 is awaited.</summary>
     private bool commandStarting;
 
+    /// <summary>The window between a command being asked for and the Commanding state.</summary>
+    private bool CommandStarting
+    {
+        get => commandStarting;
+        set
+        {
+            commandStarting = value;
+            OnPropertyChanged(nameof(CanToggleHotkeys));
+            ToggleHotkeysCommand.NotifyCanExecuteChanged();
+        }
+    }
+
     /// <summary>
     /// The entry the spoken path owns. EndCommandAsync ends this one or nothing: a key-up that
     /// arrives while a prebuilt command runs used to fail that command's entry, unlock the editor
@@ -114,10 +126,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         this.editor.TextChanged += UpdateCounters;
 
         this.hotkeys.Triggered += OnHotkey;
-        // Key-down is gated by the switch; key-up never is. A key-up can only end a hold that
-        // began while the switch was on, and dropping it would leave that hold running.
+        // Both ends of the hold are gated. A hold that began under the switch cannot outlive it -
+        // the flip is refused while a command is starting or running - so a key-up that arrives
+        // while off belongs to nothing, and letting it through would cut a mouse hold short.
         this.hotkeys.CommandKeyDown += () => Dispatcher.UIThread.Post(() => { if (HotkeysEnabled) _ = BeginCommandAsync(); });
-        this.hotkeys.CommandKeyUp += () => Dispatcher.UIThread.Post(() => _ = EndCommandAsync());
+        this.hotkeys.CommandKeyUp += () => Dispatcher.UIThread.Post(() => { if (HotkeysEnabled) _ = EndCommandAsync(); });
         this.hotkeys.RegistrationFailed += message => Dispatcher.UIThread.Post(() => Warn(message));
 
         machine.StateChanged += (_, _) => Dispatcher.UIThread.Post(RefreshState);
@@ -169,8 +182,6 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private string hotkeyHint = string.Empty;
 
-    /// <summary>The kill switch for the global hotkeys. Bound two-way to the toggle in the status bar.</summary>
-    [ObservableProperty]
     private bool hotkeysEnabled;
 
     [ObservableProperty]
@@ -223,6 +234,58 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public bool HasPreview => PreviewText.Length > 0;
 
     public bool CanRevert => snapshots.CanRevert && machine.State != SessionState.Commanding;
+
+    /// <summary>
+    /// The kill switch for the global hotkeys. The status bar button flips it through
+    /// <see cref="ToggleHotkeysCommand"/>; there is deliberately no two-way binding, because a
+    /// value refused inside its own change handler never reaches the control that wrote it.
+    /// The refusal here is for every other caller and happens before the value changes.
+    /// </summary>
+    public bool HotkeysEnabled
+    {
+        get => hotkeysEnabled;
+        set
+        {
+            if (hotkeysEnabled == value)
+                return;
+
+            if (!value && !CanToggleHotkeys && !suppressConfigSave)
+            {
+                Warn("Busy - wait for the running command to finish.");
+                return;
+            }
+
+            hotkeysEnabled = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(HotkeySwitchText));
+
+            if (suppressConfigSave)
+                return;
+
+            // Act first, persist second: this is a privacy control, and "off" has to mean off even
+            // when the config file cannot be written. Every warning below outranks the confirmation.
+            config.Hotkeys.Enabled = value;
+            Inform(value ? "Hotkeys on." : "Hotkeys off. Nothing outside this window can start a recording.");
+            ApplyHotkeys();
+
+            try
+            {
+                configStore.Save(config);
+            }
+            catch (Exception ex)
+            {
+                Warn($"Hotkeys are {(value ? "on" : "off")}, but the config could not be saved: {ex.Message}");
+            }
+        }
+    }
+
+    public string HotkeySwitchText => HotkeysEnabled ? "hotkeys: on" : "hotkeys: off";
+
+    /// <summary>Unhooking under a live hold would swallow its key-up; see <see cref="CommandStarting"/>.</summary>
+    public bool CanToggleHotkeys => !IsCommanding && !commandStarting;
+
+    [RelayCommand(CanExecute = nameof(CanToggleHotkeys))]
+    private void ToggleHotkeys() => HotkeysEnabled = !HotkeysEnabled;
 
     public string RecordButtonText => IsRecording ? "Stop" : "Record";
 
@@ -579,7 +642,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         if (commandStarting || !machine.CanStartCommand || document is null || activeCommand is not null)
             return null;
 
-        commandStarting = true;
+        CommandStarting = true;
 
         try
         {
@@ -607,7 +670,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
         finally
         {
-            commandStarting = false;
+            CommandStarting = false;
         }
     }
 
@@ -981,6 +1044,14 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void ReloadConfig()
     {
+        // Applying the hotkeys restarts the service, which unhooks the hold key under a running
+        // hold - and swapping the config under a running claude call is no better.
+        if (commandStarting || activeCommand is not null)
+        {
+            Warn("Busy - wait for the running command to finish before reloading the config.");
+            return;
+        }
+
         config = configStore.Load();
         postProcessor = new TextPostProcessor(config.Dictionary);
 
@@ -1026,41 +1097,13 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     partial void OnIsRecordingChanged(bool value) => OnPropertyChanged(nameof(RecordButtonText));
 
-    public string HotkeySwitchText => HotkeysEnabled ? "hotkeys: on" : "hotkeys: off";
-
-    partial void OnHotkeysEnabledChanged(bool value)
-    {
-        OnPropertyChanged(nameof(HotkeySwitchText));
-
-        if (suppressConfigSave)
-            return;
-
-        // Unhooking mid-hold would swallow the key-up and leave the command running until the
-        // pause window ends. The toggle is disabled while Commanding, but the hold may still be
-        // in the window before that state is reached.
-        if (!value && (commandStarting || activeCommand is not null))
-        {
-            suppressConfigSave = true;
-            HotkeysEnabled = true;
-            suppressConfigSave = false;
-            Warn("Busy - wait for the running command to finish.");
-            return;
-        }
-
-        config.Hotkeys.Enabled = value;
-        configStore.Save(config);
-        ApplyHotkeys();
-
-        if (!IsWarning)
-            Inform(value ? "Hotkeys on." : "Hotkeys off. Nothing outside this window can start a recording.");
-    }
-
     private void ApplyHotkeys()
     {
         if (!config.Hotkeys.Enabled)
         {
-            hotkeys.Stop();
             HotkeyHint = "hotkeys off";
+            if (!hotkeys.Stop())
+                Warn("The keyboard hook could not be removed - restart mumblr to be sure the hotkeys are off.");
             return;
         }
 
@@ -1105,6 +1148,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         editor.IsReadOnly = machine.IsEditorLocked;
         OnPropertyChanged(nameof(CanRevert));
+        OnPropertyChanged(nameof(CanToggleHotkeys));
+        ToggleHotkeysCommand.NotifyCanExecuteChanged();
         ToggleRecordingCommand.NotifyCanExecuteChanged();
     }
 

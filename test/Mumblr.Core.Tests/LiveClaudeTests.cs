@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Mumblr.Core.Commands;
 using Mumblr.Core.Config;
 
@@ -34,31 +35,39 @@ public class LiveClaudeTests
     {
         Assert.SkipUnless(Environment.GetEnvironmentVariable(OptIn) is "1", $"{OptIn}=1 arms this test.");
 
+        var cancellation = TestContext.Current.CancellationToken;
         var directory = Directory.CreateTempSubdirectory("mumblr-live-");
-        var file = Path.Combine(directory.FullName, "dictated.md");
-        await File.WriteAllTextAsync(file, GermanDictation + Environment.NewLine);
+        try
+        {
+            var file = Path.Combine(directory.FullName, "dictated.md");
+            await File.WriteAllTextAsync(file, GermanDictation + Environment.NewLine, cancellation);
 
-        var grammar = new MumblrConfig().PrebuiltCommands.Single(command => command.Label == "Grammar");
-        var result = await new ClaudeCommandRunner(() => new ClaudeConfig()).RunAsync(grammar.Text, file);
-        var edited = await File.ReadAllTextAsync(file);
+            var grammar = new MumblrConfig().PrebuiltCommands.Single(command => command.Label == "Grammar");
+            var result = await new ClaudeCommandRunner(() => new ClaudeConfig()).RunAsync(grammar.Text, file, cancellation);
+            var edited = await File.ReadAllTextAsync(file, cancellation);
 
-        output.WriteLine("IN:  " + GermanDictation);
-        output.WriteLine("OUT: " + edited.Trim());
-        output.WriteLine("SUMMARY: " + result.Summary);
-        output.WriteLine("MODEL: " + result.Model);
+            output.WriteLine("IN:  " + GermanDictation);
+            output.WriteLine("OUT: " + edited.Trim());
+            output.WriteLine("SUMMARY: " + result.Summary);
+            output.WriteLine("MODEL: " + result.Model);
 
-        result.Success.ShouldBeTrue(result.Summary);
-        edited.ShouldNotBe(GermanDictation + Environment.NewLine);
+            result.Success.ShouldBeTrue(result.Summary);
+            edited.Trim().ShouldNotBe(GermanDictation);
 
-        // The terms the author used in English stay English.
-        edited.ShouldContain("Vertical Slice");
-        edited.ShouldContain("OpenTelemetry");
-        edited.ShouldContain("Claude Code");
-        edited.ShouldContain("Aspire");
+            // The terms the author used in English stay English.
+            edited.ShouldContain("Vertical Slice");
+            edited.ShouldContain("OpenTelemetry");
+            edited.ShouldContain("Claude Code");
+            edited.ShouldContain("Aspire");
 
-        // And the text around them stays German.
-        edited.ShouldContain(" und ");
-        edited.ShouldContain(" die ");
-        edited.ShouldNotContain(" the ");
+            // And the text around them stays German.
+            Regex.IsMatch(edited, @"\bund\b").ShouldBeTrue();
+            Regex.IsMatch(edited, @"\bdie\b").ShouldBeTrue();
+            Regex.IsMatch(edited, @"\bthe\b").ShouldBeFalse();
+        }
+        finally
+        {
+            directory.Delete(recursive: true);
+        }
     }
 }

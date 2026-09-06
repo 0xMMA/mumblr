@@ -19,9 +19,9 @@ repository if the version button reports that it could not reach one.
 
 - **The shipped Grammar command is English**, like the prompt sent with every command. Neither
   names a language any more: the rule is that the result is in the language the file is in, and a
-  technical term stays in the language you used it in. German dictation comes back German. A
-  `config.json` written by 0.1.x keeps the old German text as your own entry - delete the
-  `prebuiltCommands` entry and reload to pick up the new default.
+  technical term stays in the language you used it in. German dictation comes back German. An
+  existing `config.json` that still holds the shipped text of an earlier version is updated on
+  the next start; a prompt you edited yourself is left alone.
 
 ### Fixed in 0.1.6
 

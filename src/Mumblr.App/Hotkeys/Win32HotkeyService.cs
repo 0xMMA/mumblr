@@ -226,20 +226,21 @@ public sealed partial class Win32HotkeyService : IHotkeyService
         static bool IsDown(int key) => (GetAsyncKeyState(key) & 0x8000) != 0;
     }
 
-    public void Stop()
+    public bool Stop()
     {
         var running = thread;
         if (running is null)
-            return;
+            return true;
 
         if (window != IntPtr.Zero)
             PostMessage(window, WmClose, IntPtr.Zero, IntPtr.Zero);
         else if (threadId != 0)
             PostThreadMessage(threadId, 0x0012 /* WM_QUIT */, IntPtr.Zero, IntPtr.Zero);
 
-        running.Join(TimeSpan.FromSeconds(2));
+        var stopped = running.Join(TimeSpan.FromSeconds(2));
         thread = null;
         ready.Reset();
+        return stopped;
     }
 
     private void Cleanup()
@@ -248,6 +249,10 @@ public sealed partial class Win32HotkeyService : IHotkeyService
             UnregisterHotKey(window, id);
 
         registrations.Clear();
+
+        // The key may be physically down while the hook goes away; the next hook must not inherit
+        // that, or its first hold is swallowed without an event and its first release is a phantom.
+        commandKeyIsDown = false;
 
         if (hookHandle != IntPtr.Zero)
         {
@@ -263,6 +268,8 @@ public sealed partial class Win32HotkeyService : IHotkeyService
 
         if (classNamePointer != IntPtr.Zero)
         {
+            // Every Start registers a fresh class; the switch makes that a per-click event.
+            UnregisterClass(classNamePointer, GetModuleHandle(null));
             Marshal.FreeHGlobal(classNamePointer);
             classNamePointer = IntPtr.Zero;
         }
@@ -314,6 +321,10 @@ public sealed partial class Win32HotkeyService : IHotkeyService
 
     [LibraryImport("user32.dll", EntryPoint = "DefWindowProcW")]
     private static partial IntPtr DefWindowProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
+
+    [LibraryImport("user32.dll", EntryPoint = "UnregisterClassW")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool UnregisterClass(IntPtr className, IntPtr instance);
 
     [LibraryImport("user32.dll", EntryPoint = "DestroyWindow")]
     [return: MarshalAs(UnmanagedType.Bool)]

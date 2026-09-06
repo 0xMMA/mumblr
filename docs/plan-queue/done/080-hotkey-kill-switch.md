@@ -56,3 +56,12 @@ back on.
 - Windows by-hand check still open: chord does nothing in a terminal while off, hook gone, toggle
   back on registers again. Headless tests cover the view model side; the unhook itself is
   `Win32HotkeyService.Stop()`, which the uninstall path already exercises.
+- Review: the snap-back inside the change handler never reached the toggle (Avalonia suppresses
+  source notifications during its own write), so the first click after a refusal did nothing.
+  A posted notification did not fix that either. The control is now a plain button driving
+  `ToggleHotkeysCommand` (CanExecute covers the starting window), so there is no two-way binding
+  to snap back; `HotkeysEnabled` refuses *before* the value changes for every other caller.
+  Save failure no longer leaves the hook installed (act, then persist, warn on failure);
+  `Stop()` reports a thread that would not go away; reload is refused mid-command; key-up is
+  gated like key-down; the Win32 side resets the hold-key flag and unregisters its window class
+  on every stop. The "uninstall path exercises Stop()" claim above was wrong - only Dispose did.

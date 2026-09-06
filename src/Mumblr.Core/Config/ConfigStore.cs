@@ -36,12 +36,29 @@ public sealed class ConfigStore
         try
         {
             var json = File.ReadAllText(ConfigPath);
-            return JsonSerializer.Deserialize<MumblrConfig>(json, Options) ?? new MumblrConfig();
+            var config = JsonSerializer.Deserialize<MumblrConfig>(json, Options) ?? new MumblrConfig();
+
+            if (ConfigMigration.Apply(config))
+                TrySave(config);
+
+            return config;
         }
         catch (JsonException)
         {
             // A broken config must never stop the app from recording.
             return new MumblrConfig();
+        }
+    }
+
+    /// <summary>A migration that cannot be written back still applies in memory; the app starts.</summary>
+    private void TrySave(MumblrConfig config)
+    {
+        try
+        {
+            Save(config);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
         }
     }
 

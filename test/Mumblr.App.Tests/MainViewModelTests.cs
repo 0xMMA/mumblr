@@ -917,6 +917,8 @@ public sealed class MainViewModelTests : IDisposable
         first.HotkeysEnabled = false;
 
         first.HotkeyHint.ShouldBe("hotkeys off");
+        first.HotkeySwitchText.ShouldBe("hotkeys: off");
+        hotkeys.Stops.ShouldBe(1);
         configStore.Load().Hotkeys.Enabled.ShouldBeFalse();
 
         first.Shutdown();
@@ -925,6 +927,114 @@ public sealed class MainViewModelTests : IDisposable
         second.HotkeysEnabled.ShouldBeFalse();
         second.HotkeyHint.ShouldBe("hotkeys off");
         hotkeys.Started.ShouldBeNull();
+        hotkeys.Stops.ShouldBeGreaterThan(1);
+    }
+
+    [AvaloniaFact]
+    public async Task The_switch_is_refused_while_a_command_is_starting()
+    {
+        // The window between key-down and the Commanding state - up to five seconds while a
+        // realtime backend is paused - is where IsCommanding is still false but a hold is live.
+        var viewModel = CreateViewModel();
+        await viewModel.ToggleRecordingCommand.ExecuteAsync(null);
+        var pause = new TaskCompletionSource();
+        engines.Last!.StopGate = pause;
+
+        hotkeys.PressCommandKey();
+        await PumpAsync();
+        viewModel.IsCommanding.ShouldBeFalse();
+        viewModel.CanToggleHotkeys.ShouldBeFalse();
+
+        viewModel.HotkeysEnabled = false;
+
+        viewModel.HotkeysEnabled.ShouldBeTrue();
+        viewModel.IsWarning.ShouldBeTrue();
+        hotkeys.Stops.ShouldBe(0);
+
+        pause.SetResult();
+        hotkeys.ReleaseCommandKey();
+        await PumpAsync();
+
+        viewModel.CanToggleHotkeys.ShouldBeTrue();
+    }
+
+    [AvaloniaFact]
+    public void Turning_hotkeys_off_when_the_config_cannot_be_saved_still_unhooks_and_warns()
+    {
+        // The switch is a privacy control: "off" must mean off even when persisting it fails.
+        var viewModel = CreateViewModel();
+        File.SetAttributes(configStore.ConfigPath, FileAttributes.ReadOnly);
+
+        try
+        {
+            viewModel.HotkeysEnabled = false;
+
+            hotkeys.Stops.ShouldBe(1);
+            viewModel.HotkeysEnabled.ShouldBeFalse();
+            viewModel.HotkeyHint.ShouldBe("hotkeys off");
+            viewModel.IsWarning.ShouldBeTrue();
+        }
+        finally
+        {
+            File.SetAttributes(configStore.ConfigPath, FileAttributes.Normal);
+        }
+    }
+
+    [AvaloniaFact]
+    public void A_stop_that_does_not_go_through_is_reported()
+    {
+        var viewModel = CreateViewModel();
+        hotkeys.StopResult = false;
+
+        viewModel.HotkeysEnabled = false;
+
+        viewModel.IsWarning.ShouldBeTrue();
+        viewModel.StatusMessage.ShouldContain("restart");
+    }
+
+    [AvaloniaFact]
+    public async Task A_config_reload_is_refused_while_a_command_runs()
+    {
+        // ApplyHotkeys restarts the service, which unhooks the hold key under a running hold.
+        var viewModel = CreateViewModel();
+        var gate = new TaskCompletionSource<CommandResult>();
+        claude.AsyncBehaviour = (_, _) => gate.Task;
+
+        var running = viewModel.RunPrebuiltCommand.ExecuteAsync(viewModel.PrebuiltCommands[0]);
+        await PumpAsync();
+        var startsBefore = hotkeys.Starts;
+
+        viewModel.ReloadConfigCommand.Execute(null);
+
+        viewModel.IsWarning.ShouldBeTrue();
+        hotkeys.Starts.ShouldBe(startsBefore);
+        hotkeys.Stops.ShouldBe(0);
+
+        gate.SetResult(new CommandResult(true, "done", "{}", TimeSpan.FromSeconds(1)));
+        await running;
+    }
+
+    [AvaloniaFact]
+    public async Task Hotkeys_off_ignores_a_stray_key_up_during_a_mouse_hold()
+    {
+        var viewModel = CreateViewModel();
+        editor.Text = "Erster Satz. Zweiter Satz.";
+        claude.FileContentAfterRun = "Erster Satz.";
+        viewModel.HotkeysEnabled = false;
+
+        viewModel.PressCommandButton();
+        await PumpAsync();
+        hotkeys.ReleaseCommandKey();
+        await PumpAsync();
+
+        viewModel.IsCommanding.ShouldBeTrue();
+        claude.Calls.ShouldBeEmpty();
+
+        capture.Emit(new byte[640]);
+        viewModel.ReleaseCommandButton();
+        await PumpAsync();
+
+        claude.Calls.Count.ShouldBe(1);
     }
 
     [AvaloniaFact]
@@ -939,6 +1049,7 @@ public sealed class MainViewModelTests : IDisposable
 
         viewModel.HotkeysEnabled.ShouldBeFalse();
         hotkeys.Started.ShouldBeNull();
+        hotkeys.Stops.ShouldBe(1);
     }
 
     [AvaloniaFact]

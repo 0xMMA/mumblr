@@ -97,9 +97,25 @@ public sealed class FakeHotkeyService : IHotkeyService
 
     public bool IsSupported => true;
     public HotkeyConfig? Started { get; private set; }
+    public int Starts { get; private set; }
+    public int Stops { get; private set; }
 
-    public void Start(HotkeyConfig config) => Started = config;
-    public void Stop() => Started = null;
+    /// <summary>What Stop reports. False stands for a hotkey thread that would not go away.</summary>
+    public bool StopResult { get; set; } = true;
+
+    public void Start(HotkeyConfig config)
+    {
+        Starts++;
+        Started = config;
+    }
+
+    public bool Stop()
+    {
+        Stops++;
+        Started = null;
+        return StopResult;
+    }
+
     public void Dispose() => Stop();
 
     public void Trigger(HotkeyAction action) => Triggered?.Invoke(action);

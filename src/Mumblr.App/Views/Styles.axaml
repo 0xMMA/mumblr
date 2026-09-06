@@ -76,6 +76,15 @@
         <Setter Property="Margin" Value="0,0,0,8" />
     </Style>
 
+    <!-- The hotkey switch in the status bar. On is the everyday state and reads like its
+         neighbours with a green label; off is the state worth a glance. -->
+    <Style Selector="Button.on /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Foreground" Value="{StaticResource GoodBrush}" />
+    </Style>
+    <Style Selector="Button.off /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Foreground" Value="{StaticResource WorkingBrush}" />
+    </Style>
+
     <Style Selector="Button.primary">
         <Setter Property="MinWidth" Value="92" />
         <Setter Property="HorizontalContentAlignment" Value="Center" />

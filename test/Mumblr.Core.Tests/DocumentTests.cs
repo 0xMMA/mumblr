@@ -136,7 +136,10 @@ public class ConfigStoreTests : IDisposable
         config.Keyterms = ["Aspire"];
         config.Dictionary = new Dictionary<string, string> { ["clod"] = "Claude" };
         config.Hotkeys.ToggleRecording = "Ctrl+Shift+R";
+        config.Hotkeys.Enabled = false;
         config.Claude.Model = "sonnet";
+        config.Claude.HeaderPrompt = "Be terse.";
+        config.PrebuiltCommands = [new PrebuiltCommand { Label = "Shorter", Text = "Halve it." }];
 
         store.Save(config);
         var reloaded = new ConfigStore(path).Load();
@@ -146,7 +149,10 @@ public class ConfigStoreTests : IDisposable
         reloaded.Keyterms.ShouldBe(["Aspire"]);
         reloaded.Dictionary["clod"].ShouldBe("Claude");
         reloaded.Hotkeys.ToggleRecording.ShouldBe("Ctrl+Shift+R");
+        reloaded.Hotkeys.Enabled.ShouldBeFalse();
         reloaded.Claude.Model.ShouldBe("sonnet");
+        reloaded.Claude.HeaderPrompt.ShouldBe("Be terse.");
+        reloaded.PrebuiltCommands.Single().Label.ShouldBe("Shorter");
     }
 
     [Fact]

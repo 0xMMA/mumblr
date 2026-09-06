@@ -68,3 +68,9 @@ into English because the instruction was English.
   longer says what the file holds, so 120 can pick any STT language without touching it.
 - Release notes open a "Changed in 0.2.0" section. Six queued features make the next tag a
   minor bump, not a patch.
+- Review: the header prompt and the prebuilt list are persisted in full on first run, so no
+  existing install would have seen either change; "delete the entry" would have emptied the
+  list. `ConfigMigration` now replaces a stored value that still equals any earlier shipped
+  default (fingerprints of three header prompts and two command lists) and leaves an edited one
+  alone. The Grammar text no longer reads as "translate the terms"; the header yields to a
+  command that asks for a translation; the live test cleans up and uses word boundaries.

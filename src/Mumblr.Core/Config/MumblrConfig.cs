@@ -45,9 +45,9 @@ public sealed class MumblrConfig
             // turns into a translation, so the command says out loud what the header prompt
             // already demands - the text keeps its language.
             Label = "Grammar",
-            Text = "Fix grammar, sentence structure and word order. Change nothing about the content, " +
-                   "and keep the language of the text: it stays in the language it was dictated in, " +
-                   "technical terms included.",
+            Text = "Fix grammar, sentence structure and word order. Change nothing about the content. " +
+                   "Keep the language as it is: the text stays in the language it was dictated in, " +
+                   "and a technical term stays in the language it was said in.",
         },
     };
 
@@ -182,8 +182,9 @@ public sealed class ClaudeConfig
 
         The file is dictation. Keep the author's wording and voice, do what the command asks,
         and leave every other line untouched. The result is in the language the file is in,
-        whatever that is, and a technical term stays in the language the author used it in.
-        Add nothing the command did not ask for - no notes, no report of your own in the file.
+        whatever that is, unless the command itself asks for a translation - and a technical
+        term stays in the language the author used it in. Add nothing the command did not ask
+        for - no notes, no report of your own in the file.
 
         Summarize in one English sentence what changed, not what was asked: "Merged the last two
         paragraphs and dropped the false starts."

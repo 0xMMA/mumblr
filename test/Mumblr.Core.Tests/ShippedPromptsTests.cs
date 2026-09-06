@@ -15,9 +15,9 @@ public class ShippedPromptsTests
     {
         var grammar = new MumblrConfig().PrebuiltCommands.Single(command => command.Label == "Grammar");
 
-        grammar.Text.ShouldContain("language");
-        grammar.Text.ShouldContain("content");
-        grammar.Text.ShouldNotContain("Grammatik");
+        grammar.Text.ShouldContain("Change nothing about the content");
+        grammar.Text.ShouldContain("stays in the language it was dictated in");
+        grammar.Text.ShouldNotContain("german", Case.Insensitive);
     }
 
     [Fact]
@@ -26,7 +26,9 @@ public class ShippedPromptsTests
         var header = ClaudeConfig.DefaultHeaderPrompt;
 
         header.ShouldContain("language the file is in");
-        header.ShouldNotContain("German");
-        header.ShouldNotContain("English technical terms");
+        // A spoken "translate this to English" is a command a user can give; the rule yields to it.
+        header.ShouldContain("asks for a translation");
+        header.ShouldNotContain("german", Case.Insensitive);
+        header.ShouldNotContain("deutsch", Case.Insensitive);
     }
 }
