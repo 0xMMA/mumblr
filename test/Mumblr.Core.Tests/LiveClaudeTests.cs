@@ -30,6 +30,63 @@ public class LiveClaudeTests
         "Commands vom Query Teil trennen und dann macht Claude Code das Refactoring vielleicht " +
         "auch einfacher wenn die Ordner klarer sind.";
 
+    /// <summary>
+    /// Ten sentences of thinking out loud: fillers, one repetition (the folder structure twice),
+    /// one contradiction (Aspire is not needed / the Aspire dashboard is required) and one gap
+    /// (which endpoints, unsaid).
+    /// </summary>
+    private const string RamblingDictation =
+        "Also ähm ich glaube wir sollten den Order Service auf Vertical Slices umbauen. " +
+        "Jeder Slice bekommt seinen eigenen Ordner mit Command, Handler und Endpoint. " +
+        "Das mit Aspire brauchen wir dafür eigentlich nicht, das können wir erstmal weglassen. " +
+        "Die Tests sollen mit Shouldly geschrieben werden, nicht mit FluentAssertions. " +
+        "Ach ja und die Ordnerstruktur, also jeder Slice in seinem eigenen Ordner, das ist wichtig. " +
+        "Die alten Endpoints müssen dabei weiter funktionieren, zumindest die wichtigen. " +
+        "Wichtig ist auch dass das Aspire Dashboard am Ende läuft, sonst sehen wir die Traces nicht. " +
+        "Migrations bitte nicht anfassen, die Datenbank bleibt wie sie ist. " +
+        "Und ähm keine neuen NuGet Pakete ohne Rückfrage. " +
+        "Das wäre es erstmal, ich glaube das reicht für den ersten Schritt.";
+
+    [Fact]
+    public async Task The_prompt_command_shapes_German_dictation_into_a_German_prompt_with_open_questions()
+    {
+        Assert.SkipUnless(Environment.GetEnvironmentVariable(OptIn) is "1", $"{OptIn}=1 arms this test.");
+
+        var cancellation = TestContext.Current.CancellationToken;
+        var directory = Directory.CreateTempSubdirectory("mumblr-live-");
+        try
+        {
+            var file = Path.Combine(directory.FullName, "dictated.md");
+            await File.WriteAllTextAsync(file, RamblingDictation + Environment.NewLine, cancellation);
+
+            var prompt = new MumblrConfig().PrebuiltCommands.Single(command => command.Label == "Prompt");
+            var result = await new ClaudeCommandRunner(() => new ClaudeConfig()).RunAsync(prompt.Text, file, cancellation);
+            var shaped = await File.ReadAllTextAsync(file, cancellation);
+
+            output.WriteLine("IN:  " + RamblingDictation);
+            output.WriteLine("OUT:\n" + shaped.Trim());
+            output.WriteLine("SUMMARY: " + result.Summary);
+            output.WriteLine("MODEL: " + result.Model);
+
+            result.Success.ShouldBeTrue(result.Summary);
+
+            // The terms and the language survive.
+            shaped.ShouldContain("Vertical Slice");
+            shaped.ShouldContain("Shouldly");
+            shaped.ShouldContain("Aspire");
+            Regex.IsMatch(shaped, @"\bthe\b").ShouldBeFalse();
+
+            // The contradiction and the gap come back as questions, not as decisions.
+            Regex.IsMatch(shaped, @"Open questions|Offene Fragen", RegexOptions.IgnoreCase).ShouldBeTrue();
+            shaped.ShouldContain("?");
+            shaped.ShouldNotContain("<");
+        }
+        finally
+        {
+            directory.Delete(recursive: true);
+        }
+    }
+
     [Fact]
     public async Task The_grammar_command_returns_German_with_the_English_terms_intact()
     {

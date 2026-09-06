@@ -28,6 +28,7 @@ public static class ConfigMigration
     [
         "dc020f150a7e5b707451dbfbe03fee372ebcb7c4da450f9624523feb8ad7c3fd", // 0.1.3 Grammatik / Mach Grammatik, Satzbau ...
         "14d753baf07a808a40b0b2ae5f339298e137d882389cde231a601c5f39a04740", // 0.1.4-0.1.6 Grammar / Mach Grammatik, Satzbau ...
+        "76fcd2710e6754d122e58c31f3929d65a79a81a490c255e21231dee23018f26b", // 0.2.0-pre Grammar (English) alone, before Prompt
     ];
 
     /// <summary>Replaces unedited legacy defaults with the current ones. True when anything changed.</summary>

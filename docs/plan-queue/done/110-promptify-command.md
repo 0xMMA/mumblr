@@ -56,3 +56,24 @@ facts, change the language.
 - A "tidy only" third button. Grammar already is that.
 - Sending the prompt anywhere. Copy puts it on the clipboard; that stays the hand-off.
 - Reading the raw file or the wav for context.
+
+## Log
+- First live run (`LiveClaudeTests.The_prompt_command_...`, 21 s, Opus) over ten sentences with
+  fillers, one repetition and one contradiction. Input: "Also ähm ich glaube wir sollten den
+  Order Service auf Vertical Slices umbauen. ... Das mit Aspire brauchen wir dafür eigentlich
+  nicht ... Wichtig ist auch dass das Aspire Dashboard am Ende läuft ..." Output: German sections
+  `## Auftrag`, `## Kontext`, `## Randbedingungen`, then `## Open questions` whose first entry is
+  "Aspire soll erstmal weggelassen werden, aber das Aspire Dashboard soll am Ende laufen und
+  Traces zeigen — was davon gilt?", followed by the gaps the text left (which slices, which of the
+  old endpoints are the important ones, whether Shouldly is already in the project or would need
+  the NuGet question). The repeated folder-structure remark was folded, the fillers dropped, no
+  requirement added. Summary: "Restructured the dictation into a German agent prompt with
+  Auftrag/Kontext/Randbedingungen sections plus an 'Open questions' list, stripping fillers and
+  the repeated folder-structure remark."
+- The header prompt's "leave every other line untouched" did not make the model timid; the
+  command's "this is shaping, not rewriting" plus the explicit ordering was enough. Header
+  unchanged.
+- Section headings came out German except "Open questions", which the command names verbatim.
+  Fine for a German author; the live test accepts either.
+- The English-only Grammar list that 0.2.0-pre wrote is now a legacy fingerprint in
+  `ConfigMigration`, so a config from between the two commits picks up the Prompt button too.

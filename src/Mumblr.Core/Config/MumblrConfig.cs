@@ -49,6 +49,21 @@ public sealed class MumblrConfig
                    "Keep the language as it is: the text stays in the language it was dictated in, " +
                    "and a technical term stays in the language it was said in.",
         },
+        new PrebuiltCommand
+        {
+            // The cautious flavour, on purpose. The dictation is a few minutes of thinking out loud
+            // about a codebase the model shaping it cannot see; a shaping that fills the gaps
+            // invents requirements. So: shape, and turn what is unclear into questions.
+            Label = "Prompt",
+            Text = "Turn this dictation into a prompt for an AI coding agent. This is shaping, not " +
+                   "rewriting: keep the author's words, language and intent, and add nothing the author " +
+                   "did not say - no facts, no requirements, no steps. Remove speech artefacts and " +
+                   "repetition; one idea per sentence; technical terms exactly as said. Order it as: what " +
+                   "is wanted, the context given, the constraints. End with a section titled " +
+                   "'Open questions' that lists every gap and every contradiction as a question the " +
+                   "receiving agent has to ask before acting - answer none of them, resolve none of them " +
+                   "silently. Plain markdown sections, no XML tags.",
+        },
     };
 
     /// <summary>Deterministic client-side replacements applied to committed transcript text.</summary>

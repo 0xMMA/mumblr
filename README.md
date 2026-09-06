@@ -77,10 +77,18 @@ itself revertible. The raw file is never touched by Claude.
 
 Commands you say word for word every day belong on a button instead. `prebuiltCommands` in the
 config becomes a row of buttons above the log; clicking one skips the microphone and the STT round
-trip entirely and takes the identical path from there - snapshot, `claude -p`, reload, revert. The
-shipped one, **Grammar**, fixes grammar, sentence structure and word order and changes nothing
-else: not the content, and not its language. German dictation with English terms comes back as
-German dictation with English terms.
+trip entirely and takes the identical path from there - snapshot, `claude -p`, reload, revert. Two
+ship:
+
+- **Grammar** fixes grammar, sentence structure and word order and changes nothing else: not the
+  content, and not its language. German dictation with English terms comes back as German
+  dictation with English terms.
+- **Prompt** is the "get a prompt" in the tagline. It shapes the dictation into something you can
+  hand to a coding agent - the ask first, then the context you gave, then the constraints - and
+  ends with an *Open questions* section holding every gap and contradiction as a question. It
+  adds nothing you did not say: the agent receiving the prompt can ask, you can answer, and a
+  shaping that fills the gaps for you would be inventing requirements about a codebase it has
+  never seen. Raw is one click away if it went too far.
 
 ## States
 

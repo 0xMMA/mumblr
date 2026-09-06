@@ -12,6 +12,12 @@ repository if the version button reports that it could not reach one.
 
 ### Changed in 0.2.0
 
+- **The Prompt button.** The tagline promised a prompt and the tool delivered a transcript. The
+  second shipped button shapes the dictation into a prompt for a coding agent - the ask first,
+  then context, then constraints, then an *Open questions* section with every gap and
+  contradiction as a question. It keeps your words and your language and adds nothing you did
+  not say.
+
 - **The raw dictation is always one click away.** Everything speech-to-text produces is also
   appended to `dictated-<timestamp>.raw.md`, which no command ever touches. The **Raw** button
   next to Revert puts it back into the buffer, whatever the commands did since - snapshotted

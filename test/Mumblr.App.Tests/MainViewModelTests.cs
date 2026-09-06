@@ -501,6 +501,7 @@ public sealed class MainViewModelTests : IDisposable
         // Label and text are both English: one is UI, the other an instruction to Claude.
         viewModel.PrebuiltCommands[0].Label.ShouldBe("Grammar");
         viewModel.PrebuiltCommands[0].Text.ShouldContain("grammar");
+        viewModel.PrebuiltCommands[1].Label.ShouldBe("Prompt");
     }
 
     [AvaloniaFact]

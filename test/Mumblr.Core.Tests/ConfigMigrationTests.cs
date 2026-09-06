@@ -70,6 +70,16 @@ public sealed class ConfigMigrationTests : IDisposable
     }
 
     [Fact]
+    public void The_English_grammar_only_list_becomes_the_current_shipped_list()
+    {
+        // What 0.2.0 wrote before the Prompt button existed.
+        var grammar = new MumblrConfig().PrebuiltCommands.Single(command => command.Label == "Grammar");
+        var config = LoadFrom(new { prebuiltCommands = new[] { new { label = grammar.Label, text = grammar.Text } } });
+
+        config.PrebuiltCommands.Select(command => command.Label).ShouldBe(["Grammar", "Prompt"]);
+    }
+
+    [Fact]
     public void A_command_list_the_user_extended_is_left_alone()
     {
         var config = LoadFrom(new

@@ -21,6 +21,19 @@ public class ShippedPromptsTests
     }
 
     [Fact]
+    public void The_shipped_prompt_command_shapes_without_inventing()
+    {
+        var prompt = new MumblrConfig().PrebuiltCommands.Single(command => command.Label == "Prompt");
+
+        // The three things that make it safe on a dictation whose context the model cannot see.
+        prompt.Text.ShouldContain("Open questions");
+        prompt.Text.ShouldContain("add nothing the author did not say");
+        prompt.Text.ShouldContain("language");
+        prompt.Text.ShouldContain("no XML");
+        prompt.Text.ShouldNotContain("german", Case.Insensitive);
+    }
+
+    [Fact]
     public void The_header_prompt_states_the_language_rule_without_naming_a_language()
     {
         var header = ClaudeConfig.DefaultHeaderPrompt;
