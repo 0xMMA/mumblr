@@ -16,7 +16,11 @@ public sealed class NullHotkeyService : IHotkeyService
 
     public bool IsSupported => false;
 
-    public void Start(HotkeyConfig config) => RegistrationFailed?.Invoke("Global hotkeys need Windows.");
+    public bool Start(HotkeyConfig config)
+    {
+        RegistrationFailed?.Invoke("Global hotkeys need Windows.");
+        return false;
+    }
 
     public bool Stop() => true;
 

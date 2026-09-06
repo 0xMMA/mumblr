@@ -29,7 +29,11 @@ public interface IHotkeyService : IDisposable
 
     bool IsSupported { get; }
 
-    void Start(HotkeyConfig config);
+    /// <summary>
+    /// Registers the chords and installs the hold-key hook. False means nothing was registered -
+    /// the reason comes through <see cref="RegistrationFailed"/>, which may arrive later.
+    /// </summary>
+    bool Start(HotkeyConfig config);
 
     /// <summary>
     /// Unregisters every chord and removes the keyboard hook. Safe before any Start and more than

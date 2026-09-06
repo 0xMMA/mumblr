@@ -18,9 +18,10 @@ repository if the version button reports that it could not reach one.
   contradiction as a question. It keeps your words and your language and adds nothing you did
   not say.
 - **The raw dictation is always one click away.** Everything speech-to-text produces is also
-  appended to `dictated-<timestamp>.raw.md`, which is read-only on disk so no command can touch
-  it. The **Raw** button next to Revert puts it back into the buffer, whatever the commands did
-  since - snapshotted first, so Revert undoes that too.
+  appended to `dictated-<timestamp>.raw.md`, which carries the read-only attribute between
+  appends so a command's Edit cannot land on it. The **Raw** button next to Revert puts it back
+  into the buffer, whatever the commands did since - snapshotted first, so Revert undoes that
+  too.
 - **The shipped Grammar command is English**, like the prompt sent with every command. Neither
   names a language any more: the rule is that the result is in the language the file is in, and a
   technical term stays in the language you used it in. German dictation comes back German. An

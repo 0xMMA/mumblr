@@ -248,7 +248,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public string SttStatusText =>
         $"{SelectedSttMode} - {EngineStatus}" + (IsAutoLanguage(SelectedLanguage) ? string.Empty : $" \u00B7 {SelectedLanguage}");
 
-    private static bool IsAutoLanguage(string? code) => string.IsNullOrWhiteSpace(code) || code == AutoLanguage;
+    private static bool IsAutoLanguage(string? code) =>
+        string.IsNullOrWhiteSpace(code) || string.Equals(code.Trim(), AutoLanguage, StringComparison.OrdinalIgnoreCase);
 
     public string VersionButtonText => HasUpdate ? $"update to {UpdateVersion} and restart" : $"v{Version}";
 
@@ -268,9 +269,35 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public bool CanRestoreRaw =>
         document is { RawText.Length: > 0 } && machine.State == SessionState.Idle && !SameWords(editor.Text, document.RawText);
 
-    private static bool SameWords(string a, string b) =>
-        a.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)
-            .SequenceEqual(b.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+    /// <summary>
+    /// Word by word without splitting either string: this runs on every keystroke, through the
+    /// binding, over the whole buffer.
+    /// </summary>
+    private static bool SameWords(string a, string b)
+    {
+        var (i, j) = (0, 0);
+
+        while (true)
+        {
+            while (i < a.Length && char.IsWhiteSpace(a[i])) i++;
+            while (j < b.Length && char.IsWhiteSpace(b[j])) j++;
+
+            if (i == a.Length || j == b.Length)
+                return i == a.Length && j == b.Length;
+
+            while (i < a.Length && !char.IsWhiteSpace(a[i]))
+            {
+                if (j == b.Length || char.IsWhiteSpace(b[j]) || a[i] != b[j])
+                    return false;
+
+                i++;
+                j++;
+            }
+
+            if (j < b.Length && !char.IsWhiteSpace(b[j]))
+                return false;
+        }
+    }
 
     /// <summary>
     /// The kill switch for the global hotkeys. The status bar button flips it through
@@ -661,7 +688,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             }
             catch (Exception ex)
             {
-                Warn($"The raw dictation file could not be written: {ex.Message}");
+                // Through the latch, not straight to the status line: informing at the end of the
+                // recording would otherwise erase the only trace that raw is now incomplete.
+                FailRecording($"The raw dictation file could not be written: {ex.Message}");
             }
         }
 
@@ -1233,11 +1262,17 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
-        hotkeys.Start(config.Hotkeys);
-        HotkeyHint = hotkeys.IsSupported
+        // The hint names the chords only when they are actually registered. RegistrationFailed
+        // carries the reason to the status line, but it arrives through the dispatcher, so the
+        // hint has to be decided from the result rather than from what the status line says.
+        var started = hotkeys.Start(config.Hotkeys);
+
+        HotkeyHint = started
             ? $"{config.Hotkeys.ToggleRecording} record  ·  hold {config.Hotkeys.CommandHoldKey} command  ·  " +
               $"{config.Hotkeys.Copy} copy  ·  {config.Hotkeys.RevertCommand} revert"
-            : "Global hotkeys need Windows - use the buttons.";
+            : hotkeys.IsSupported
+                ? "hotkeys unavailable"
+                : "Global hotkeys need Windows - use the buttons.";
     }
 
     private void OnHotkey(HotkeyAction action) => Dispatcher.UIThread.Post(() =>

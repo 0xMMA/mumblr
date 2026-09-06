@@ -986,6 +986,23 @@ public sealed class MainViewModelTests : IDisposable
     }
 
     [AvaloniaFact]
+    public async Task A_hotkey_service_that_refuses_to_start_does_not_advertise_the_chords()
+    {
+        // The hint used to name chords that were never registered, and the reason - which arrives
+        // through the dispatcher - was the only sign anything was wrong.
+        hotkeys.StartRefusal = "The previous hotkey thread did not stop - restart mumblr.";
+
+        var viewModel = CreateViewModel();
+
+        viewModel.HotkeyHint.ShouldBe("hotkeys unavailable");
+        viewModel.HotkeyHint.ShouldNotContain("Ctrl+Alt+Space");
+
+        await PumpAsync();
+        viewModel.IsWarning.ShouldBeTrue();
+        viewModel.StatusMessage.ShouldContain("did not stop");
+    }
+
+    [AvaloniaFact]
     public void A_stop_that_does_not_go_through_is_reported()
     {
         var viewModel = CreateViewModel();
@@ -1260,14 +1277,20 @@ public sealed class MainViewModelTests : IDisposable
 
         await viewModel.ToggleRecordingCommand.ExecuteAsync(null);
         engines.Last!.Commit("eins");
+        engines.Last.Commit("zwei");
         await PumpAsync();
 
-        editor.Text.ShouldBe("eins");
+        // Both segments are in the buffer: the failure costs the raw file, not the dictation,
+        // and not the rest of the queue behind it.
+        editor.Text.ShouldBe("eins zwei");
         viewModel.IsWarning.ShouldBeTrue();
         viewModel.StatusMessage.ShouldContain("raw");
 
+        // And the warning survives the end of the recording, which informs over the status line.
         await viewModel.ToggleRecordingCommand.ExecuteAsync(null);
         viewModel.IsRecording.ShouldBeFalse();
+        viewModel.IsWarning.ShouldBeTrue();
+        viewModel.StatusMessage.ShouldContain("raw");
     }
 
     [AvaloniaFact]
@@ -1364,6 +1387,19 @@ public sealed class MainViewModelTests : IDisposable
     }
 
     [AvaloniaFact]
+    public void The_language_picker_treats_any_casing_of_auto_as_auto()
+    {
+        config.Stt.LanguageCode = "AUTO";
+        configStore.Save(config);
+
+        var viewModel = CreateViewModel();
+
+        viewModel.SttStatusText.ShouldNotContain("AUTO");
+        Mumblr.Core.Stt.SttSessionOptionsFactory.ForRecording(configStore.Load(), SttMode.Realtime)
+            .LanguageCode.ShouldBeNull();
+    }
+
+    [AvaloniaFact]
     public void A_null_language_list_in_the_config_does_not_stop_the_app()
     {
         config.Stt.Languages = null!;
@@ -1385,6 +1421,7 @@ public sealed class MainViewModelTests : IDisposable
 
         viewModel.SelectedDevice!.Id.ShouldBe("dev-2");
         viewModel.IsWarning.ShouldBeTrue();
+        viewModel.StatusMessage.ShouldContain("config");
     }
 
     [AvaloniaFact]

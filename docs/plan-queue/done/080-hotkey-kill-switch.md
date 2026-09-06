@@ -65,3 +65,7 @@ back on.
   `Stop()` reports a thread that would not go away; reload is refused mid-command; key-up is
   gated like key-down; the Win32 side resets the hold-key flag and unregisters its window class
   on every stop. The "uninstall path exercises Stop()" claim above was wrong - only Dispose did.
+- Second review: `Stop()` cleared its thread field even when the join timed out, so the refusal
+  to restart over a hung thread only worked once. A hotkey thread that will not join is now
+  latched as abandoned - `Stop` reports false from then on and `Start` refuses - and `Start`
+  returns whether it registered anything, so the hint stops naming chords that do not exist.

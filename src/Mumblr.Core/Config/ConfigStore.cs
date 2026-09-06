@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace Mumblr.Core.Config;
 
@@ -35,23 +36,64 @@ public sealed class ConfigStore
 
         try
         {
-            var json = File.ReadAllText(ConfigPath);
-            var config = JsonSerializer.Deserialize<MumblrConfig>(json, Options) ?? new MumblrConfig();
+            var config = Parse(File.ReadAllText(ConfigPath));
 
             if (ConfigMigration.Apply(config))
                 TrySave(config);
 
             return config;
         }
-        catch (Exception ex) when (ex is not JsonException)
+        catch (Exception)
         {
-            // Same rule as below, for whatever the repair or the write-back did not foresee.
+            // A broken config must never stop the app from recording. It is left on disk exactly
+            // as it is: the next Save overwrites it, and until then the file is the user's to fix.
             return new MumblrConfig();
         }
-        catch (JsonException)
+    }
+
+    /// <summary>
+    /// Nulls are dropped before deserialization, so a hand-edited <c>"sttMode": null</c> costs
+    /// that one key its default instead of throwing - which used to cost the whole file, silently,
+    /// because the throw was indistinguishable from a broken config. Applies to every value type,
+    /// every list entry and every dictionary value, at any depth.
+    /// </summary>
+    private static MumblrConfig Parse(string json)
+    {
+        var node = JsonNode.Parse(json);
+        StripNulls(node);
+        return node.Deserialize<MumblrConfig>(Options) ?? new MumblrConfig();
+    }
+
+    private static void StripNulls(JsonNode? node)
+    {
+        switch (node)
         {
-            // A broken config must never stop the app from recording.
-            return new MumblrConfig();
+            case JsonObject o:
+                foreach (var key in o.Where(pair => pair.Value is null).Select(pair => pair.Key).ToList())
+                    o.Remove(key);
+                foreach (var value in o.Select(pair => pair.Value))
+                    StripNulls(value);
+                break;
+
+            case JsonArray a:
+                for (var i = a.Count - 1; i >= 0; i--)
+                    if (a[i] is null)
+                        a.RemoveAt(i);
+                    else
+                        StripNulls(a[i]);
+                break;
+        }
+    }
+
+    private static void TryDelete(string path)
+    {
+        try
+        {
+            File.Delete(path);
+        }
+        catch (Exception)
+        {
+            // The move already failed; a leftover temp file is not what the caller needs to hear.
         }
     }
 
@@ -78,7 +120,9 @@ public sealed class ConfigStore
         if (!string.IsNullOrEmpty(dir))
             Directory.CreateDirectory(dir);
 
-        var temporary = ConfigPath + ".tmp";
+        // Named per process: two mumblr windows share this file, and one temp name would let them
+        // write the same one and move a half-finished file into place.
+        var temporary = $"{ConfigPath}.{Environment.ProcessId}.tmp";
         File.WriteAllText(temporary, JsonSerializer.Serialize(config, Options));
 
         try
@@ -87,7 +131,7 @@ public sealed class ConfigStore
         }
         catch
         {
-            File.Delete(temporary);
+            TryDelete(temporary);
             throw;
         }
     }

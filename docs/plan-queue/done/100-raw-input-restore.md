@@ -64,3 +64,7 @@ markdown and the wav, and a button that puts it back into the buffer.
   joins takes with a paragraph break and the buffer with a space. The log entry no longer says
   "prebuilt: Raw". The fake editor now moves the caret like the real one, which is what had
   hidden the separator mismatch.
+- Second review: a raw write failure now goes through the recording's failure latch, so the
+  "Stopped" message at the end of the recording cannot erase it. The read-only attribute is best
+  effort and set after the mirror - a file system that will not carry it still gets the text.
+  `SameWords` compares in place instead of splitting both strings on every keystroke.

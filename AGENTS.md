@@ -107,5 +107,7 @@ lines verbatim.
   shipped string as missing when it is there. Use `strings -el`.
 - **A shipped default lives on in every `config.json`.** The file is written in full on first
   run, so a changed `DefaultHeaderPrompt` or prebuilt command reaches no existing install unless
-  `ConfigMigration` knows the fingerprint of the text being replaced. Add it in the same commit.
+  `ConfigMigration` knows the fingerprint of the text being replaced. Add it in the same commit,
+  compute it with `ConfigMigration.Fingerprint`, and pin it in `ConfigMigrationTests` against the
+  literal old text in `ShippedDefaults` — a wrong fingerprint fails nothing and migrates nobody.
 - **Check CLI flags against `claude --help`,** never against memory.

@@ -85,7 +85,7 @@ public class DictationDocumentTests : IDisposable
         var document = DictationDocument.Create(directory);
         Directory.CreateDirectory(document.RawPath); // a directory where the file should go
 
-        Should.Throw<Exception>(() => document.AppendRaw("eins"));
+        Should.Throw<UnauthorizedAccessException>(() => document.AppendRaw("eins"));
 
         document.RawText.ShouldBe(string.Empty);
     }

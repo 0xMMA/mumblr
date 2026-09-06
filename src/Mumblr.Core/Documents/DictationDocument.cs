@@ -76,13 +76,29 @@ public sealed class DictationDocument
             : " ";
         var chunk = separator + text;
 
-        if (File.Exists(RawPath))
-            File.SetAttributes(RawPath, FileAttributes.Normal);
+        SetReadOnly(false);
         File.AppendAllText(RawPath, chunk);
-        File.SetAttributes(RawPath, FileAttributes.ReadOnly);
 
         takePending = false;
         RawText += chunk;
+
+        // After the mirror, and best effort: the chunk is already on disk, and failing to put the
+        // attribute back is not worth losing a segment over.
+        SetReadOnly(true);
+    }
+
+    private void SetReadOnly(bool readOnly)
+    {
+        try
+        {
+            if (File.Exists(RawPath))
+                File.SetAttributes(RawPath, readOnly ? FileAttributes.ReadOnly : FileAttributes.Normal);
+        }
+        catch (Exception)
+        {
+            // The attribute is a guard rail, not the feature. A file system that will not carry it
+            // still gets the text.
+        }
     }
 
     /// <summary>Writes the in-memory buffer to disk. Called on every state change and on copy.</summary>

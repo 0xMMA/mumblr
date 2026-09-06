@@ -14,7 +14,7 @@ public sealed class TextPostProcessor
     {
         // Longest first so "claude code" wins over a "code" rule.
         rules = dictionary
-            .Where(kv => !string.IsNullOrWhiteSpace(kv.Key))
+            .Where(kv => !string.IsNullOrWhiteSpace(kv.Key) && kv.Value is not null)
             .OrderByDescending(kv => kv.Key.Length)
             .Select(kv => (BuildPattern(kv.Key), kv.Value))
             .ToList();

@@ -74,3 +74,8 @@ into English because the instruction was English.
   default (fingerprints of three header prompts and two command lists) and leaves an edited one
   alone. The Grammar text no longer reads as "translate the terms"; the header yields to a
   command that asks for a translation; the live test cleans up and uses word boundaries.
+- Second review: the config's own null handling was the weak point behind this change. Nulls are
+  now stripped at the JSON level before deserialization, so a hand-edited `"sttMode": null` costs
+  that key its default instead of silently replacing the whole file with defaults - which is what
+  used to happen, because the deserializer's throw was indistinguishable from a broken config.
+  `config.json` is written to a per-process temp file and moved into place.

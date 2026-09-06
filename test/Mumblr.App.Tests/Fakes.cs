@@ -97,9 +97,7 @@ public sealed class FakeHotkeyService : IHotkeyService
     public event Action<HotkeyAction>? Triggered;
     public event Action? CommandKeyDown;
     public event Action? CommandKeyUp;
-#pragma warning disable CS0067
     public event Action<string>? RegistrationFailed;
-#pragma warning restore CS0067
 
     public bool IsSupported => true;
     public HotkeyConfig? Started { get; private set; }
@@ -109,10 +107,21 @@ public sealed class FakeHotkeyService : IHotkeyService
     /// <summary>What Stop reports. False stands for a hotkey thread that would not go away.</summary>
     public bool StopResult { get; set; } = true;
 
-    public void Start(HotkeyConfig config)
+    /// <summary>When set, Start registers nothing and reports this instead.</summary>
+    public string? StartRefusal { get; set; }
+
+    public bool Start(HotkeyConfig config)
     {
         Starts++;
+
+        if (StartRefusal is not null)
+        {
+            RegistrationFailed?.Invoke(StartRefusal);
+            return false;
+        }
+
         Started = config;
+        return true;
     }
 
     public bool Stop()

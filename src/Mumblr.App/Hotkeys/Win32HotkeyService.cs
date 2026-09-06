@@ -33,6 +33,12 @@ public sealed partial class Win32HotkeyService : IHotkeyService
     private readonly ManualResetEventSlim ready = new(false);
 
     private Thread? thread;
+
+    /// <summary>
+    /// A hotkey thread that would not join. Its <c>Cleanup</c> can still run and would tear down
+    /// whatever a later Start registered, so nothing starts again until the process does.
+    /// </summary>
+    private bool abandoned;
     private IntPtr window;
     private IntPtr hookHandle;
     private uint threadId;
@@ -52,20 +58,20 @@ public sealed partial class Win32HotkeyService : IHotkeyService
 
     public bool IsSupported => OperatingSystem.IsWindows();
 
-    public void Start(HotkeyConfig config)
+    public bool Start(HotkeyConfig config)
     {
         if (!IsSupported)
         {
             RegistrationFailed?.Invoke("Global hotkeys need Windows.");
-            return;
+            return false;
         }
 
         // A thread that did not go away would run its Cleanup over the registrations made below -
         // unhook the new hook, free the new class name. Refusing to start is the safe answer.
-        if (!Stop())
+        if (!Stop() || abandoned)
         {
             RegistrationFailed?.Invoke("The previous hotkey thread did not stop - restart mumblr before turning the hotkeys back on.");
-            return;
+            return false;
         }
 
         thread = new Thread(() => Run(config))
@@ -75,7 +81,7 @@ public sealed partial class Win32HotkeyService : IHotkeyService
         };
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
-        ready.Wait(TimeSpan.FromSeconds(5));
+        return ready.Wait(TimeSpan.FromSeconds(5));
     }
 
     private void Run(HotkeyConfig config)
@@ -236,6 +242,9 @@ public sealed partial class Win32HotkeyService : IHotkeyService
 
     public bool Stop()
     {
+        if (abandoned)
+            return false;
+
         var running = thread;
         if (running is null)
             return true;
@@ -246,7 +255,8 @@ public sealed partial class Win32HotkeyService : IHotkeyService
             PostThreadMessage(threadId, 0x0012 /* WM_QUIT */, IntPtr.Zero, IntPtr.Zero);
 
         var stopped = running.Join(TimeSpan.FromSeconds(2));
-        thread = null;
+        abandoned = !stopped;
+        thread = stopped ? null : running;
         ready.Reset();
         return stopped;
     }
