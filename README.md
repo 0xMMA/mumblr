@@ -62,9 +62,11 @@ both built, switchable in the UI:
 | **Realtime** (default) | Scribe v2 Realtime over a websocket. Committed segments append as you speak, partials only show in the preview line and never enter the buffer. | 50, 20 chars |
 | **Batch** | Scribe v2, one POST when you stop. Slower to first text, highest accuracy. | 1000, 50 chars |
 
-`no_verbatim` is on, so filler words and false starts are dropped inside the model. `language_code`
-is left unset for auto-detect - German with English technical terms works out of the box. Client side
-there is a deterministic dictionary pass with no LLM involved (`clod code` -> `Claude Code`).
+`no_verbatim` is on, so filler words and false starts are dropped inside the model. The language is
+auto-detected by default, which handles German with English technical terms out of the box; when a
+short take in another language throws the detection off, the **LANG** picker in the toolbar pins it
+for the next recording, and `stt.languages` in the config is the list it offers. Client side there
+is a deterministic dictionary pass with no LLM involved (`clod code` -> `Claude Code`).
 
 **Channel 2 - commands.** Hold the command key, say what to change, let go. The clip goes through
 batch STT, and the resulting command plus the absolute file path go to your locally installed
@@ -135,7 +137,7 @@ Everything else lives in `%APPDATA%\mumblr\config.json` (the **Config** button o
 | `dictionary` | Literal replacements applied to committed text |
 | `hotkeys` | `enabled` (the status bar toggle), `toggleRecording`, `copy`, `revertCommand`, `commandHoldKey` |
 | `claude` | `model`, `effort`, `headerPrompt`, allowed/disallowed tools, timeout |
-| `stt` | Model ids, `noVerbatim`, `languageCode`, base URL, VAD silence threshold, `keytermsEncoding` |
+| `stt` | Model ids, `noVerbatim`, `languageCode` (what the LANG picker chose, unset for auto), `languages` (what it offers), base URL, VAD silence threshold, `keytermsEncoding` |
 | `prebuiltCommands` | `label` and `text` per button. Both English: the label is UI, the text an instruction to Claude. The prompt sent with every command says the dictation keeps its own language. |
 
 Two settings are deliberately not in the file. `ELEVENLABS_API_KEY` (or `XI_API_KEY`) carries the

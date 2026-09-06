@@ -12,6 +12,10 @@ repository if the version button reports that it could not reach one.
 
 ### Changed in 0.2.0
 
+- **Pick the transcription language in the window.** A LANG picker next to the STT mode offers
+  auto and the codes from `stt.languages` (de and en to start with) and applies to the next
+  recording. The status bar shows the pick whenever it is not auto.
+
 - **The Prompt button.** The tagline promised a prompt and the tool delivered a transcript. The
   second shipped button shapes the dictation into a prompt for a coding agent - the ask first,
   then context, then constraints, then an *Open questions* section with every gap and

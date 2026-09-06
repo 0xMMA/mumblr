@@ -8,7 +8,7 @@
         Title="{Binding WindowTitle}"
         Icon="avares://mumblr/Assets/mumblr.png"
         Width="1180" Height="720"
-        MinWidth="1040" MinHeight="480"
+        MinWidth="1160" MinHeight="480"
         Background="{StaticResource InkBrush}">
 
     <DockPanel>
@@ -66,6 +66,12 @@
                               SelectedItem="{Binding SelectedSttMode}"
                               MinWidth="110"
                               IsEnabled="{Binding !IsRecording}" />
+                    <TextBlock Classes="label" Text="LANG" />
+                    <ComboBox ItemsSource="{Binding Languages}"
+                              SelectedItem="{Binding SelectedLanguage}"
+                              MinWidth="72"
+                              IsEnabled="{Binding !IsRecording}"
+                              ToolTip.Tip="Transcription language for the next recording. auto lets Scribe detect it; stt.languages in the config is the list offered here." />
                 </StackPanel>
 
                 <Button Grid.Column="7" Content="Copy" Command="{Binding CopyCommand}" />

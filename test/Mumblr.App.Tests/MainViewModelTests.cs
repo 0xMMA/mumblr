@@ -1262,6 +1262,83 @@ public sealed class MainViewModelTests : IDisposable
         File.ReadAllText(RawPath).ShouldBe("eins zwei\n\ndrei");
     }
 
+    // ---------------------------------------------------------------- language picker
+
+    [AvaloniaFact]
+    public void The_language_picker_offers_auto_and_the_configured_codes()
+    {
+        var viewModel = CreateViewModel();
+
+        viewModel.Languages.ShouldBe(["auto", "de", "en"]);
+        viewModel.SelectedLanguage.ShouldBe("auto");
+        viewModel.SttStatusText.ShouldNotContain("auto");
+    }
+
+    [AvaloniaFact]
+    public async Task Picking_a_language_persists_and_reaches_the_next_session()
+    {
+        var viewModel = CreateViewModel();
+
+        viewModel.SelectedLanguage = "de";
+
+        new ConfigStore(configStore.ConfigPath).Load().Stt.LanguageCode.ShouldBe("de");
+        viewModel.SttStatusText.ShouldEndWith("de");
+
+        await viewModel.ToggleRecordingCommand.ExecuteAsync(null);
+        engines.Last!.Options!.LanguageCode.ShouldBe("de");
+        await viewModel.ToggleRecordingCommand.ExecuteAsync(null);
+
+        viewModel.SelectedLanguage = "auto";
+
+        new ConfigStore(configStore.ConfigPath).Load().Stt.LanguageCode.ShouldBeNull();
+        await viewModel.ToggleRecordingCommand.ExecuteAsync(null);
+        engines.Last!.Options!.LanguageCode.ShouldBeNull();
+    }
+
+    [AvaloniaFact]
+    public async Task A_language_picked_during_a_recording_applies_to_the_next_session()
+    {
+        // A running websocket has its language already; the picker is disabled in the window
+        // while recording, and a change that gets through anyway waits for the next session.
+        var viewModel = CreateViewModel();
+        await viewModel.ToggleRecordingCommand.ExecuteAsync(null);
+        var running = engines.Last!;
+
+        viewModel.SelectedLanguage = "en";
+
+        running.Options!.LanguageCode.ShouldBeNull();
+        await viewModel.ToggleRecordingCommand.ExecuteAsync(null);
+        await viewModel.ToggleRecordingCommand.ExecuteAsync(null);
+        engines.Last!.Options!.LanguageCode.ShouldBe("en");
+    }
+
+    [AvaloniaFact]
+    public void An_unknown_configured_code_is_offered_as_is()
+    {
+        config.Stt.LanguageCode = "fr";
+        configStore.Save(config);
+
+        var viewModel = CreateViewModel();
+
+        viewModel.Languages.ShouldBe(["auto", "de", "en", "fr"]);
+        viewModel.SelectedLanguage.ShouldBe("fr");
+    }
+
+    [AvaloniaFact]
+    public void A_config_reload_re_reads_the_picker()
+    {
+        var viewModel = CreateViewModel();
+        var edited = configStore.Load();
+        edited.Stt.LanguageCode = "en";
+        edited.Stt.Languages = ["de", "en", "fr"];
+        configStore.Save(edited);
+
+        viewModel.ReloadConfigCommand.Execute(null);
+
+        viewModel.Languages.ShouldBe(["auto", "de", "en", "fr"]);
+        viewModel.SelectedLanguage.ShouldBe("en");
+    }
+
     public void Dispose()
     {
         // The WAV file stays open for the whole session, so the view model has to go first:

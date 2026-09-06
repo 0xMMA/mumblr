@@ -40,3 +40,16 @@ call.
 ## Out of scope
 - Switching language mid-recording.
 - Translating anything.
+
+## Log
+- "Picker refused in Recording" became "applies to the next session". The combo is disabled
+  while recording, and a refusal inside the view model would only desynchronise a disabled
+  control; the session options are read at engine start, so a change during a recording waits
+  for the next one by construction. A test pins that.
+- The language rides on the STT status text ("Realtime - connected · de") instead of a new
+  status bar field, so auto costs no width at all.
+- `MinWidth` went from 1040 to 1160: the picker and its label are about 120 px of toolbar that
+  cannot shrink. The default width is 1180, so the window opens the same as before.
+- Rebuilding the list on config reload pushes a null through the ComboBox binding; the change
+  handler treats null as "not a choice" and the rebuild runs under the save suppression.
+- Windows by-hand check open: the toolbar at 1160 px with a long microphone name.

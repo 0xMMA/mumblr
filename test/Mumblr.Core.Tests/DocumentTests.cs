@@ -172,6 +172,8 @@ public class ConfigStoreTests : IDisposable
         config.Dictionary = new Dictionary<string, string> { ["clod"] = "Claude" };
         config.Hotkeys.ToggleRecording = "Ctrl+Shift+R";
         config.Hotkeys.Enabled = false;
+        config.Stt.LanguageCode = "en";
+        config.Stt.Languages = ["de", "en", "fr"];
         config.Claude.Model = "sonnet";
         config.Claude.HeaderPrompt = "Be terse.";
         config.PrebuiltCommands = [new PrebuiltCommand { Label = "Shorter", Text = "Halve it." }];
@@ -185,6 +187,8 @@ public class ConfigStoreTests : IDisposable
         reloaded.Dictionary["clod"].ShouldBe("Claude");
         reloaded.Hotkeys.ToggleRecording.ShouldBe("Ctrl+Shift+R");
         reloaded.Hotkeys.Enabled.ShouldBeFalse();
+        reloaded.Stt.LanguageCode.ShouldBe("en");
+        reloaded.Stt.Languages.ShouldBe(["de", "en", "fr"]);
         reloaded.Claude.Model.ShouldBe("sonnet");
         reloaded.Claude.HeaderPrompt.ShouldBe("Be terse.");
         reloaded.PrebuiltCommands.Single().Label.ShouldBe("Shorter");

@@ -91,8 +91,14 @@ public sealed class SttConfig
     /// <summary>Drops filler words and false starts inside the model.</summary>
     public bool NoVerbatim { get; set; } = true;
 
-    /// <summary>Unset means auto-detect.</summary>
+    /// <summary>Unset means auto-detect. The toolbar picker writes this; "auto" there is unset here.</summary>
     public string? LanguageCode { get; set; }
+
+    /// <summary>
+    /// What the picker offers besides auto. A list rather than a free-text box: the codes ElevenLabs
+    /// accepts are not guessable and a typo costs a request.
+    /// </summary>
+    public List<string> Languages { get; set; } = ["de", "en"];
 
     public string BaseUrl { get; set; } = "https://api.elevenlabs.io";
 

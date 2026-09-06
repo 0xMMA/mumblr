@@ -34,6 +34,14 @@ public class RealtimeUriTests
     }
 
     [Fact]
+    public void Sends_the_language_code_when_one_is_picked()
+    {
+        var uri = ElevenLabsRequest.BuildRealtimeUri(Options() with { LanguageCode = "de" }, []);
+
+        uri.Query.ShouldContain("language_code=de");
+    }
+
+    [Fact]
     public void Sends_keyterms_as_repeated_parameters_by_default()
     {
         var uri = ElevenLabsRequest.BuildRealtimeUri(Options(), ["Aspire", "Shouldly"]);

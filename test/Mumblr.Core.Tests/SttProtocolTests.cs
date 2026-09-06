@@ -47,6 +47,18 @@ public class BatchSttProtocolTests
     }
 
     [Fact]
+    public async Task Sends_the_language_code_when_one_is_picked()
+    {
+        await using var server = await FakeElevenLabsServer.StartAsync();
+        using var http = new HttpClient();
+        await using var engine = new ElevenLabsBatchSttEngine(http, () => "test-key");
+
+        await engine.TranscribeAsync(new byte[320], Options(server.BaseUrl) with { LanguageCode = "de" });
+
+        server.BatchForm["language_code"].ShouldBe(["de"]);
+    }
+
+    [Fact]
     public async Task Can_pack_keyterms_into_a_json_array_as_an_escape_hatch()
     {
         await using var server = await FakeElevenLabsServer.StartAsync();

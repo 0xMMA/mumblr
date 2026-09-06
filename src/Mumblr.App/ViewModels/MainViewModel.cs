@@ -124,6 +124,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         this.engineFactory = engineFactory ?? new ElevenLabsSttEngineFactory(http);
         selectedSttMode = config.SttMode;
         hotkeysEnabled = config.Hotkeys.Enabled;
+        RefreshLanguages();
 
         this.capture.DataAvailable += OnAudioCaptured;
         this.capture.LevelChanged += OnLevelChanged;
@@ -153,6 +154,18 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public bool HasPrebuiltCommands => PrebuiltCommands.Count > 0;
 
     public IReadOnlyList<SttMode> SttModes { get; } = [SttMode.Realtime, SttMode.Batch];
+
+    public const string AutoLanguage = "auto";
+
+    /// <summary>Auto plus the configured codes, plus whatever the config names that the list does not.</summary>
+    public ObservableCollection<string> Languages { get; } = [];
+
+    /// <summary>
+    /// The transcription language for the next recording. A running websocket has its language
+    /// already, so a change during a recording waits for the next session by construction.
+    /// </summary>
+    [ObservableProperty]
+    private string? selectedLanguage;
 
     [ObservableProperty]
     private AudioDeviceInfo? selectedDevice;
@@ -232,7 +245,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     public string MicrophoneLabel => SelectedDevice?.Name ?? "no microphone";
 
-    public string SttStatusText => $"{SelectedSttMode} - {EngineStatus}";
+    public string SttStatusText =>
+        $"{SelectedSttMode} - {EngineStatus}" + (IsAutoLanguage(SelectedLanguage) ? string.Empty : $" \u00B7 {SelectedLanguage}");
+
+    private static bool IsAutoLanguage(string? code) => string.IsNullOrWhiteSpace(code) || code == AutoLanguage;
 
     public string VersionButtonText => HasUpdate ? $"update to {UpdateVersion} and restart" : $"v{Version}";
 
@@ -1110,6 +1126,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         suppressConfigSave = true;
         SelectedSttMode = config.SttMode;
         HotkeysEnabled = config.Hotkeys.Enabled;
+        RefreshLanguages();
         suppressConfigSave = false;
 
         ApplyHotkeys();
@@ -1131,6 +1148,37 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         config.MicrophoneDeviceId = value.Id;
         config.MicrophoneDeviceName = value.Name;
+        configStore.Save(config);
+    }
+
+    /// <summary>Rebuilds the picker from the config and selects what the config names. Callers suppress saving.</summary>
+    private void RefreshLanguages()
+    {
+        Languages.Clear();
+        Languages.Add(AutoLanguage);
+
+        foreach (var code in config.Stt.Languages.Select(code => code.Trim()).Where(code => code.Length > 0))
+            if (!Languages.Contains(code))
+                Languages.Add(code);
+
+        // An unknown code in the config is still the user's choice: offer it as-is rather than
+        // silently replacing it with auto.
+        var current = config.Stt.LanguageCode?.Trim();
+        if (!string.IsNullOrEmpty(current) && !Languages.Contains(current))
+            Languages.Add(current);
+
+        SelectedLanguage = string.IsNullOrEmpty(current) ? AutoLanguage : current;
+    }
+
+    partial void OnSelectedLanguageChanged(string? value)
+    {
+        OnPropertyChanged(nameof(SttStatusText));
+
+        // Rebuilding the list pushes a null through the binding; that is not a choice.
+        if (suppressConfigSave || value is null)
+            return;
+
+        config.Stt.LanguageCode = IsAutoLanguage(value) ? null : value.Trim();
         configStore.Save(config);
     }
 
