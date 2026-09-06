@@ -1153,6 +1153,114 @@ public sealed class MainViewModelTests : IDisposable
         attention.Wanted.ShouldBeTrue();
     }
 
+    // ---------------------------------------------------------------- raw dictation
+
+    private string RawPath => viewModel!.DocumentPath[..^".md".Length] + ".raw.md";
+
+    private async Task DictateAsync(MainViewModel viewModel, params string[] segments)
+    {
+        await viewModel.ToggleRecordingCommand.ExecuteAsync(null);
+        foreach (var segment in segments)
+            engines.Last!.Commit(segment);
+        await PumpAsync();
+        await viewModel.ToggleRecordingCommand.ExecuteAsync(null);
+    }
+
+    [AvaloniaFact]
+    public async Task Raw_grows_with_each_segment_and_survives_a_command()
+    {
+        var viewModel = CreateViewModel();
+        claude.FileContentAfterRun = "Anders.";
+
+        await DictateAsync(viewModel, "Erster Satz.", "Zweiter Satz.");
+        await viewModel.RunPrebuiltCommand.ExecuteAsync(viewModel.PrebuiltCommands[0]);
+
+        editor.Text.ShouldBe("Anders.");
+        File.ReadAllText(RawPath).ShouldBe("Erster Satz. Zweiter Satz.");
+    }
+
+    [AvaloniaFact]
+    public async Task Raw_restores_the_dictation_after_two_commands_and_is_revertible()
+    {
+        var viewModel = CreateViewModel();
+        await DictateAsync(viewModel, "Eins zwei.");
+        claude.FileContentAfterRun = "A";
+        await viewModel.RunPrebuiltCommand.ExecuteAsync(viewModel.PrebuiltCommands[0]);
+        claude.FileContentAfterRun = "B";
+        await viewModel.RunPrebuiltCommand.ExecuteAsync(viewModel.PrebuiltCommands[0]);
+
+        viewModel.CanRestoreRaw.ShouldBeTrue();
+        viewModel.RestoreRawCommand.Execute(null);
+
+        editor.Text.ShouldBe("Eins zwei.");
+        File.ReadAllText(viewModel.DocumentPath).ShouldBe("Eins zwei.");
+        viewModel.CommandLog[0].Source.ShouldBe("Raw");
+        viewModel.CommandLog[0].Status.ShouldBe(CommandStatus.Succeeded);
+        viewModel.CanRestoreRaw.ShouldBeFalse();
+
+        viewModel.CanRevert.ShouldBeTrue();
+        viewModel.RevertLastCommandCommand.Execute(null);
+
+        editor.Text.ShouldBe("B");
+        viewModel.CommandLog[0].Status.ShouldBe(CommandStatus.Reverted);
+    }
+
+    [AvaloniaFact]
+    public async Task Raw_is_disabled_until_the_buffer_differs_from_what_was_said()
+    {
+        var viewModel = CreateViewModel();
+        viewModel.CanRestoreRaw.ShouldBeFalse();
+
+        await DictateAsync(viewModel, "Gesagt.");
+        viewModel.CanRestoreRaw.ShouldBeFalse();
+
+        editor.Text = "Gesagt. Getippt.";
+        viewModel.CanRestoreRaw.ShouldBeTrue();
+    }
+
+    [AvaloniaFact]
+    public async Task Raw_is_refused_while_recording_and_while_claude_works()
+    {
+        var viewModel = CreateViewModel();
+        await DictateAsync(viewModel, "Gesagt.");
+        editor.Text = "Anders.";
+
+        await viewModel.ToggleRecordingCommand.ExecuteAsync(null);
+        viewModel.CanRestoreRaw.ShouldBeFalse();
+        await viewModel.ToggleRecordingCommand.ExecuteAsync(null);
+
+        var gate = new TaskCompletionSource<CommandResult>();
+        claude.AsyncBehaviour = (_, _) => gate.Task;
+        var running = viewModel.RunPrebuiltCommand.ExecuteAsync(viewModel.PrebuiltCommands[0]);
+        await PumpAsync();
+        viewModel.CanRestoreRaw.ShouldBeFalse();
+        gate.SetResult(new CommandResult(true, "done", "{}", TimeSpan.FromSeconds(1)));
+        await running;
+    }
+
+    [AvaloniaFact]
+    public async Task A_command_in_the_middle_of_a_recording_does_not_split_the_take_but_a_new_recording_does()
+    {
+        var viewModel = CreateViewModel();
+        await viewModel.ToggleRecordingCommand.ExecuteAsync(null);
+        engines.Last!.Commit("eins");
+        await PumpAsync();
+
+        hotkeys.PressCommandKey();
+        await PumpAsync();
+        capture.Emit(new byte[640]);
+        hotkeys.ReleaseCommandKey();
+        await PumpAsync();
+        viewModel.IsRecording.ShouldBeTrue();
+
+        engines.Last!.Commit("zwei");
+        await PumpAsync();
+        await viewModel.ToggleRecordingCommand.ExecuteAsync(null);
+        await DictateAsync(viewModel, "drei");
+
+        File.ReadAllText(RawPath).ShouldBe("eins zwei\n\ndrei");
+    }
+
     public void Dispose()
     {
         // The WAV file stays open for the whole session, so the view model has to go first:

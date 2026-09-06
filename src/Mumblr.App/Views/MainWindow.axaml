@@ -160,9 +160,14 @@
                 <DockPanel>
                     <Border DockPanel.Dock="Top" Padding="12,8" BorderThickness="0,0,0,1"
                             BorderBrush="{StaticResource HairlineBrush}">
-                        <Grid ColumnDefinitions="*,Auto">
+                        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6">
                             <TextBlock Classes="label" Text="COMMAND LOG" VerticalAlignment="Center" />
-                            <Button Grid.Column="1" Content="Revert last"
+                            <Button Grid.Column="1" Content="Raw"
+                                    Command="{Binding RestoreRawCommand}"
+                                    IsEnabled="{Binding CanRestoreRaw}"
+                                    ToolTip.Tip="Put the dictation back exactly as speech-to-text produced it, whatever the commands did since. The current text is snapshotted first, so Revert brings it back."
+                                    FontSize="11" Padding="8,3" />
+                            <Button Grid.Column="2" Content="Revert last"
                                     Command="{Binding RevertLastCommandCommand}"
                                     IsEnabled="{Binding CanRevert}"
                                     FontSize="11" Padding="8,3" />

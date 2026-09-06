@@ -1,20 +1,32 @@
 namespace Mumblr.Core.Documents;
 
 /// <summary>
-/// The markdown file for one mumblr run plus the WAV that sits next to it. Created the moment the
-/// app spawns so a Claude Code session can already reference the path.
+/// The markdown file for one mumblr run plus the WAV and the raw transcript that sit next to it.
+/// Created the moment the app spawns so a Claude Code session can already reference the path.
 /// </summary>
 public sealed class DictationDocument
 {
+    private bool takePending;
+
     private DictationDocument(string markdownPath, string wavPath)
     {
         MarkdownPath = markdownPath;
         WavPath = wavPath;
+        RawPath = Path.ChangeExtension(markdownPath, ".raw.md");
     }
 
     public string MarkdownPath { get; }
 
     public string WavPath { get; }
+
+    /// <summary>
+    /// What speech-to-text produced, and only that. Commands rewrite the markdown in place and
+    /// revert is one step at a time; this file is the words as spoken, whatever ran over them.
+    /// Nothing an LLM wrote ever lands here.
+    /// </summary>
+    public string RawPath { get; }
+
+    public string RawText { get; private set; } = string.Empty;
 
     public string Directory => Path.GetDirectoryName(MarkdownPath)!;
 
@@ -39,6 +51,29 @@ public sealed class DictationDocument
 
         File.WriteAllText(markdown, string.Empty);
         return new DictationDocument(markdown, wav);
+    }
+
+    /// <summary>
+    /// The next segment opens a new paragraph: a recording the user started, as opposed to channel
+    /// 1 resuming after a command, which continues the take.
+    /// </summary>
+    public void BeginTake() => takePending = true;
+
+    /// <summary>Appends one committed segment, after the dictionary pass. The file appears on first use.</summary>
+    public void AppendRaw(string text)
+    {
+        if (text.Length == 0)
+            return;
+
+        var separator = RawText.Length == 0 ? string.Empty
+            : takePending ? "\n\n"
+            : char.IsWhiteSpace(RawText[^1]) ? string.Empty
+            : " ";
+        takePending = false;
+
+        var chunk = separator + text;
+        RawText += chunk;
+        File.AppendAllText(RawPath, chunk);
     }
 
     /// <summary>Writes the in-memory buffer to disk. Called on every state change and on copy.</summary>

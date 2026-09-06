@@ -12,6 +12,11 @@ repository if the version button reports that it could not reach one.
 
 ### Changed in 0.2.0
 
+- **The raw dictation is always one click away.** Everything speech-to-text produces is also
+  appended to `dictated-<timestamp>.raw.md`, which no command ever touches. The **Raw** button
+  next to Revert puts it back into the buffer, whatever the commands did since - snapshotted
+  first, so Revert undoes that too.
+
 - **A running recording is visible from the taskbar.** The title reads "● Recording - mumblr" and
   the taskbar button flashes whenever the window is not in front, until you come back or stop.
   Tab into the IDE, get absorbed, and the recording no longer runs on unnoticed by the minute.

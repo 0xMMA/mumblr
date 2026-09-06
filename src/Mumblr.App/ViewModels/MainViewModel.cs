@@ -244,6 +244,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     public bool CanRevert => snapshots.CanRevert && machine.State != SessionState.Commanding;
 
+    /// <summary>Something was said, nobody is writing, and the buffer is no longer what was said.</summary>
+    public bool CanRestoreRaw =>
+        document is { RawText.Length: > 0 } && machine.State == SessionState.Idle && editor.Text != document.RawText;
+
     /// <summary>
     /// The kill switch for the global hotkeys. The status bar button flips it through
     /// <see cref="ToggleHotkeysCommand"/>; there is deliberately no two-way binding, because a
@@ -441,6 +445,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
 
         recordingFailure = null;
+        document.BeginTake();
 
         try
         {
@@ -594,7 +599,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     });
 
     /// <summary>Cheap facts for the status bar; the buffer is the only source that can change.</summary>
-    private void UpdateCounters() => CharacterCount = editor.Text.Length;
+    private void UpdateCounters()
+    {
+        CharacterCount = editor.Text.Length;
+        OnPropertyChanged(nameof(CanRestoreRaw));
+    }
 
     /// <summary>
     /// The failure that belongs to the recording currently running, if any. Cleared when a
@@ -621,6 +630,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             if (text.Length == 0)
                 continue;
 
+            document?.AppendRaw(text);
+
             var offset = Math.Clamp(insertOffset, 0, editor.Text.Length);
             var separator = NeedsSeparator(editor.Text, offset) ? " " : string.Empty;
             var chunk = separator + text;
@@ -631,6 +642,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         PreviewText = string.Empty;
         OnPropertyChanged(nameof(HasPreview));
+        OnPropertyChanged(nameof(CanRestoreRaw));
         UpdateCounters();
     }
 
@@ -949,6 +961,37 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         await RunCommandAsync(entry, prebuilt.Text.Trim());
     }
 
+    /// <summary>
+    /// Puts the words as spoken back into the buffer, whatever the commands did since. The current
+    /// text is snapshotted first, so this is one more revertible step, not a way to lose work.
+    /// </summary>
+    [RelayCommand]
+    private void RestoreRaw()
+    {
+        if (document is null || !CanRestoreRaw)
+            return;
+
+        const string label = "Restore the raw dictation";
+        snapshots.Push(editor.Text, label);
+
+        var raw = document.RawText;
+        editor.Text = raw;
+        document.Flush(raw);
+        insertOffset = raw.Length;
+
+        CommandLog.Insert(0, new CommandLogItem
+        {
+            CommandText = label,
+            Source = "Raw",
+            Status = CommandStatus.Succeeded,
+            Response = "The buffer is what speech-to-text produced again. Revert brings the previous text back.",
+        });
+
+        OnPropertyChanged(nameof(CanRevert));
+        OnPropertyChanged(nameof(CanRestoreRaw));
+        Inform("Raw dictation restored.");
+    }
+
     [RelayCommand]
     private void RevertLastCommand()
     {
@@ -1164,6 +1207,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         editor.IsReadOnly = machine.IsEditorLocked;
         OnPropertyChanged(nameof(CanRevert));
+        OnPropertyChanged(nameof(CanRestoreRaw));
         OnPropertyChanged(nameof(CanToggleHotkeys));
         ToggleHotkeysCommand.NotifyCanExecuteChanged();
         ToggleRecordingCommand.NotifyCanExecuteChanged();

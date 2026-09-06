@@ -47,9 +47,10 @@ say to an agent.
 mumblr .
 ```
 
-That creates `dictated-<timestamp>.md` in the current folder, keeps the raw `dictated-<timestamp>.wav`
-next to it, and opens a window. Talk, press stop, and the whole buffer is on your clipboard while the
-file stays on disk for any Claude Code session to read by path.
+That creates `dictated-<timestamp>.md` in the current folder and opens a window. Next to it go
+`dictated-<timestamp>.wav`, the audio, and `dictated-<timestamp>.raw.md`, everything speech-to-text
+produced and nothing else. Talk, press stop, and the whole buffer is on your clipboard while the
+files stay on disk for any Claude Code session to read by path.
 
 ## The two channels
 
@@ -70,7 +71,9 @@ batch STT, and the resulting command plus the absolute file path go to your loca
 `claude -p`, which edits the file with its own Read/Edit tools. Typical commands: *delete the last
 sentence*, *replace X with Y*, *clean this up*, *turn this into a prompt*. Expect 15-30 s with Opus at
 high effort. Nothing from this channel ever lands in the content file - it goes to the command log
-panel, and every call is snapshotted so you can revert it.
+panel, and every call is snapshotted so you can revert it. Revert is one step at a time; **Raw**
+puts the dictation back exactly as it was transcribed, whatever the commands did since, and is
+itself revertible. The raw file is never touched by Claude.
 
 Commands you say word for word every day belong on a button instead. `prebuiltCommands` in the
 config becomes a row of buttons above the log; clicking one skips the microphone and the STT round

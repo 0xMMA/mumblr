@@ -44,3 +44,16 @@ markdown and the wav, and a button that puts it back into the buffer.
 ## Out of scope
 - A diff view between raw and current.
 - Restoring the raw of an earlier session.
+
+## Log
+- The raw file lives in `DictationDocument` next to the markdown and the wav (`RawPath`,
+  `RawText`, `AppendRaw`, `BeginTake`). It appears on first segment, not at start, so a run
+  without dictation leaves no empty file behind.
+- Takes are paragraphs: `BeginTake` is called only by a user-started recording, so channel 1
+  resuming after a command continues the same paragraph. Covered by a test that runs a hold in
+  the middle of a recording and then a second recording.
+- `CanRestoreRaw` is the whole rule: something was said, nobody is writing (Idle), and the buffer
+  differs from what was said. Typed text counts as a difference, so Raw drops it - but the
+  snapshot taken first means Revert brings it back, which the test proves.
+- Raw writes a command log entry of its own (source "Raw") so the log tells the story, and the
+  snapshot label equals the entry's text, which is how Revert marks the right entry as reverted.

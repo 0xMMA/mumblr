@@ -40,6 +40,41 @@ public class DictationDocumentTests : IDisposable
     }
 
     [Fact]
+    public void Appends_every_segment_to_a_raw_file_next_to_the_markdown()
+    {
+        var document = DictationDocument.Create(directory);
+
+        document.AppendRaw("erster Satz");
+        document.AppendRaw("zweiter Satz");
+
+        Path.GetFileName(document.RawPath).ShouldBe(Path.GetFileNameWithoutExtension(document.MarkdownPath) + ".raw.md");
+        document.RawText.ShouldBe("erster Satz zweiter Satz");
+        File.ReadAllText(document.RawPath).ShouldBe("erster Satz zweiter Satz");
+    }
+
+    [Fact]
+    public void A_new_take_starts_a_paragraph_in_the_raw_file()
+    {
+        var document = DictationDocument.Create(directory);
+
+        document.BeginTake();
+        document.AppendRaw("eins");
+        document.BeginTake();
+        document.AppendRaw("zwei");
+
+        document.RawText.ShouldBe("eins\n\nzwei");
+    }
+
+    [Fact]
+    public void The_raw_file_does_not_exist_until_something_was_said()
+    {
+        var document = DictationDocument.Create(directory);
+
+        File.Exists(document.RawPath).ShouldBeFalse();
+        document.RawText.ShouldBe(string.Empty);
+    }
+
+    [Fact]
     public void Flush_and_read_round_trip_the_buffer()
     {
         var document = DictationDocument.Create(directory);
