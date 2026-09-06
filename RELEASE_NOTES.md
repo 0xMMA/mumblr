@@ -12,36 +12,33 @@ repository if the version button reports that it could not reach one.
 
 ### Changed in 0.2.0
 
-- **Pick the transcription language in the window.** A LANG picker next to the STT mode offers
-  auto and the codes from `stt.languages` (de and en to start with) and applies to the next
-  recording and to spoken commands. The status bar shows the pick whenever it is not auto.
-
 - **The Prompt button.** The tagline promised a prompt and the tool delivered a transcript. The
   second shipped button shapes the dictation into a prompt for a coding agent - the ask first,
   then context, then constraints, then an *Open questions* section with every gap and
   contradiction as a question. It keeps your words and your language and adds nothing you did
   not say.
-
 - **The raw dictation is always one click away.** Everything speech-to-text produces is also
   appended to `dictated-<timestamp>.raw.md`, which is read-only on disk so no command can touch
-  it. The **Raw** button
-  next to Revert puts it back into the buffer, whatever the commands did since - snapshotted
-  first, so Revert undoes that too.
-
-- **A running recording is visible from the taskbar.** The title reads "● Recording - mumblr" and
-  the taskbar button flashes whenever the window is not in front, until you come back or stop.
-  Tab into the IDE, get absorbed, and the recording no longer runs on unnoticed by the minute.
-
-- **One click turns the global hotkeys off.** The hotkeys work while another window has focus by
-  design, so a chord that collides with a game, a screen share or another tool could start a
-  recording in the background. The **hotkeys** toggle in the status bar unregisters every chord
-  and removes the keyboard hook; the buttons keep working, and the state survives a restart.
-
+  it. The **Raw** button next to Revert puts it back into the buffer, whatever the commands did
+  since - snapshotted first, so Revert undoes that too.
 - **The shipped Grammar command is English**, like the prompt sent with every command. Neither
   names a language any more: the rule is that the result is in the language the file is in, and a
   technical term stays in the language you used it in. German dictation comes back German. An
   existing `config.json` that still holds the shipped text of an earlier version is updated on
   the next start; a prompt you edited yourself is left alone.
+- **One click turns the global hotkeys off.** The hotkeys work while another window has focus by
+  design, so a chord that collides with a game, a screen share or another tool could start a
+  recording in the background. The **hotkeys** button in the status bar unregisters every chord
+  and removes the keyboard hook; the buttons keep working, and the state survives a restart.
+- **A running recording is visible from the taskbar.** The title reads "● Recording - mumblr" and
+  the taskbar button flashes whenever the window is not in front, until you come back or stop.
+  Tab into the IDE, get absorbed, and the recording no longer runs on unnoticed by the minute.
+- **Pick the transcription language in the window.** A LANG picker next to the STT mode offers
+  auto and the codes from `stt.languages` (de and en to start with) and applies to the next
+  recording and to spoken commands. The status bar shows the pick whenever it is not auto.
+- A hand-edited `null` anywhere in `config.json` now means the default instead of a crash on
+  start, and the config is written atomically, so two mumblr windows sharing it cannot read a
+  half-written file.
 
 ### Fixed in 0.1.6
 
