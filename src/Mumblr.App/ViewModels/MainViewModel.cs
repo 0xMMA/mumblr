@@ -62,6 +62,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     /// <summary>Guards the window inside PrepareCommandAsync where pausing channel 1 is awaited.</summary>
     private bool commandStarting;
 
+    /// <summary>True while the global chords are actually registered, so tooltips can name them.</summary>
+    private bool hotkeysActive;
+
     /// <summary>The window between a command being asked for and the Commanding state.</summary>
     private bool CommandStarting
     {
@@ -343,7 +346,34 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand(CanExecute = nameof(CanToggleHotkeys))]
     private void ToggleHotkeys() => HotkeysEnabled = !HotkeysEnabled;
 
-    public string RecordButtonText => IsRecording ? "Stop" : "Record";
+    public string RecordButtonText => IsRecording ? "Stop & copy" : "Record";
+
+    public string RecordButtonTooltip => IsRecording
+        ? "Stop the recording. The whole buffer goes to the clipboard and the file stays on disk."
+              + Chord(config.Hotkeys.ToggleRecording)
+        : "Start dictating. Text is appended where the caret is now, and the editor locks until you stop."
+              + Chord(config.Hotkeys.ToggleRecording);
+
+    public string CommandButtonTooltip =>
+        "Hold, say what to change - \"delete the last sentence\", \"clean this up\" - then release. "
+        + "The clip goes to claude -p, which edits the file; the spoken words themselves never land in the text. "
+        + "Watch it in the command log, undo it with Revert last."
+        + Chord(config.Hotkeys.CommandHoldKey, "hold ");
+
+    public string CopyButtonTooltip =>
+        "Copy the whole buffer to the clipboard. Stopping a recording already does this."
+        + Chord(config.Hotkeys.Copy);
+
+    /// <summary>Names the chord only while it is actually registered, so the tip never lies.</summary>
+    private string Chord(string chord, string verb = "") =>
+        hotkeysActive && !string.IsNullOrWhiteSpace(chord) ? $"  ({verb}{chord})" : string.Empty;
+
+    private void RefreshButtonTooltips()
+    {
+        OnPropertyChanged(nameof(RecordButtonTooltip));
+        OnPropertyChanged(nameof(CommandButtonTooltip));
+        OnPropertyChanged(nameof(CopyButtonTooltip));
+    }
 
     /// <summary>Creates the dictation file and brings up devices and hotkeys.</summary>
     public void Initialize()
@@ -1250,12 +1280,18 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     partial void OnPreviewTextChanged(string value) => OnPropertyChanged(nameof(HasPreview));
 
-    partial void OnIsRecordingChanged(bool value) => OnPropertyChanged(nameof(RecordButtonText));
+    partial void OnIsRecordingChanged(bool value)
+    {
+        OnPropertyChanged(nameof(RecordButtonText));
+        OnPropertyChanged(nameof(RecordButtonTooltip));
+    }
 
     private void ApplyHotkeys()
     {
         if (!config.Hotkeys.Enabled)
         {
+            hotkeysActive = false;
+            RefreshButtonTooltips();
             HotkeyHint = "hotkeys off";
             if (!hotkeys.Stop())
                 Warn("The keyboard hook could not be removed - restart mumblr to be sure the hotkeys are off.");
@@ -1266,6 +1302,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         // carries the reason to the status line, but it arrives through the dispatcher, so the
         // hint has to be decided from the result rather than from what the status line says.
         var started = hotkeys.Start(config.Hotkeys);
+        hotkeysActive = started;
+        RefreshButtonTooltips();
 
         HotkeyHint = started
             ? $"{config.Hotkeys.ToggleRecording} record  ·  hold {config.Hotkeys.CommandHoldKey} command  ·  " +

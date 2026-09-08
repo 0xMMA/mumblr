@@ -10,6 +10,21 @@ so `mumblr .` works from any folder. Open a new terminal afterwards - a `PATH` c
 reach one that is already running. In-app updates need a release feed the app can read; see the
 repository if the version button reports that it could not reach one.
 
+### Fixed in 0.2.1
+
+- **The toolbar no longer cuts off its last control.** It was a fixed grid of columns, so anything
+  that did not fit was simply clipped - on a narrow window, or a wider system font, the reload
+  button next to Config lost its right edge. The bar wraps onto a second line now instead of
+  clipping, at any width, and the window starts at 1280x760 rather than just wide enough.
+- **Every control in the toolbar says what it does.** Record, the hold button, Copy, the
+  microphone picker, the level meter, the STT and language pickers and both config buttons carry
+  a tooltip. The ones bound to a hotkey name the chord - and only while that chord is actually
+  registered, so the tip stops naming it when the hotkeys are switched off.
+- **Clearer labels on the two buttons that do the most.** Record turns into **Stop & copy**,
+  because stopping puts the whole buffer on the clipboard and that was worth saying. The
+  hold-to-talk button is **Hold to edit**: it says what happens to the text rather than naming
+  the channel it runs on.
+
 ### Changed in 0.2.0
 
 - **The Prompt button.** The tagline promised a prompt and the tool delivered a transcript. The

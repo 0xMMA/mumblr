@@ -7,32 +7,38 @@
         x:DataType="vm:MainViewModel"
         Title="{Binding WindowTitle}"
         Icon="avares://mumblr/Assets/mumblr.png"
-        Width="1180" Height="720"
-        MinWidth="1160" MinHeight="480"
+        Width="1280" Height="760"
+        MinWidth="700" MinHeight="480"
         Background="{StaticResource InkBrush}">
 
     <DockPanel>
 
         <!-- toolbar -->
-        <Border DockPanel.Dock="Top" Classes="bar" BorderThickness="0,0,0,1">
-            <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto,Auto,Auto" ColumnSpacing="10">
+        <Border DockPanel.Dock="Top" Classes="bar" BorderThickness="0,0,0,1" Padding="12,8,12,4">
+            <!-- A WrapPanel, not a Grid: the toolbar has to fold onto a second line on a narrow
+                 window instead of clipping whichever control sits last. -->
+            <WrapPanel Orientation="Horizontal">
 
-                <Button Grid.Column="0"
-                        Classes="primary"
+                <Button Classes="primary toolbar"
+                        MinWidth="118"
                         Command="{Binding ToggleRecordingCommand}"
-                        IsEnabled="{Binding !IsCommanding}">
+                        IsEnabled="{Binding !IsCommanding}"
+                        ToolTip.Tip="{Binding RecordButtonTooltip}">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <Ellipse Classes="dot" Classes.live="{Binding IsRecording}" />
                         <TextBlock Text="{Binding RecordButtonText}" VerticalAlignment="Center" />
                     </StackPanel>
                 </Button>
 
-                <Button Grid.Column="1"
+                <!-- Deliberately never disabled: a disabled button gets no PointerReleased, so
+                     disabling it the moment the hold starts would strand the command mid-flight.
+                     BeginCommandAsync rejects a second command instead. -->
+                <Button Classes="toolbar"
                         Name="CommandButton"
-                        Content="Hold to command"
-                        ToolTip.Tip="Hold, speak an edit, release. claude -p applies it to the file." />
+                        Content="Hold to edit"
+                        ToolTip.Tip="{Binding CommandButtonTooltip}" />
 
-                <Border Grid.Column="2" Classes="badge"
+                <Border Classes="badge toolbar"
                         Classes.live="{Binding IsRecording}"
                         Classes.working="{Binding IsCommanding}">
                     <StackPanel Orientation="Horizontal" Spacing="8">
@@ -43,29 +49,32 @@
                     </StackPanel>
                 </Border>
 
-                <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="6">
+                <StackPanel Classes="toolbar" Orientation="Horizontal" Spacing="6">
                     <TextBlock Classes="label" Text="MIC" />
                     <ComboBox ItemsSource="{Binding Devices}"
                               SelectedItem="{Binding SelectedDevice}"
-                              MinWidth="220" MaxWidth="300"
-                              PlaceholderText="pick a microphone" />
+                              MinWidth="200" MaxWidth="300"
+                              PlaceholderText="pick a microphone"
+                              ToolTip.Tip="mumblr records from this endpoint only and never follows the Windows default device." />
                     <Button Content="&#x21BB;" Command="{Binding RefreshDevicesCommand}" ToolTip.Tip="Rescan devices" />
                 </StackPanel>
 
-                <Border Grid.Column="4" Width="90" Height="8" CornerRadius="4"
-                        Background="{StaticResource PanelRaisedBrush}" VerticalAlignment="Center">
+                <Border Classes="toolbar" Width="90" Height="8" CornerRadius="4"
+                        Background="{StaticResource PanelRaisedBrush}" VerticalAlignment="Center"
+                        ToolTip.Tip="Input level. If this stays flat while you talk, the wrong microphone is selected.">
                     <ProgressBar Minimum="0" Maximum="1" Value="{Binding Level}"
                                  Height="8" CornerRadius="4"
                                  Foreground="{StaticResource GoodBrush}"
                                  Background="Transparent" />
                 </Border>
 
-                <StackPanel Grid.Column="6" Orientation="Horizontal" Spacing="6">
+                <StackPanel Classes="toolbar" Orientation="Horizontal" Spacing="6">
                     <TextBlock Classes="label" Text="STT" />
                     <ComboBox ItemsSource="{Binding SttModes}"
                               SelectedItem="{Binding SelectedSttMode}"
                               MinWidth="110"
-                              IsEnabled="{Binding !IsRecording}" />
+                              IsEnabled="{Binding !IsRecording}"
+                              ToolTip.Tip="Realtime appends committed segments while you talk. Batch sends the whole take on stop - slower to first text, more accurate, far more keyterms." />
                     <TextBlock Classes="label" Text="LANG" />
                     <ComboBox ItemsSource="{Binding Languages}"
                               SelectedItem="{Binding SelectedLanguage}"
@@ -74,16 +83,18 @@
                               ToolTip.Tip="Transcription language for the next recording and for spoken commands. auto lets Scribe detect it; stt.languages in the config is the list offered here." />
                 </StackPanel>
 
-                <Button Grid.Column="7" Content="Copy" Command="{Binding CopyCommand}" />
-                <StackPanel Grid.Column="8" Orientation="Horizontal" Spacing="4">
+                <Button Classes="toolbar" Content="Copy" Command="{Binding CopyCommand}"
+                        ToolTip.Tip="{Binding CopyButtonTooltip}" />
+
+                <StackPanel Classes="toolbar" Orientation="Horizontal" Spacing="4">
                     <Button Content="Config"
                             Command="{Binding OpenConfigCommand}"
-                            ToolTip.Tip="Open config.json - keyterms, dictionary, hotkeys, claude model" />
+                            ToolTip.Tip="Open config.json - keyterms, dictionary, hotkeys, prompts, claude model" />
                     <Button Content="&#x21BB;"
                             Command="{Binding ReloadConfigCommand}"
-                            ToolTip.Tip="Reload the config after editing it" />
+                            ToolTip.Tip="Reload config.json after editing it, without restarting mumblr" />
                 </StackPanel>
-            </Grid>
+            </WrapPanel>
         </Border>
 
         <!-- status bar -->

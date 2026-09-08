@@ -88,6 +88,12 @@
         <Setter Property="Foreground" Value="{StaticResource TextDimBrush}" />
     </Style>
 
+    <!-- Spacing for the wrapping toolbar: the bottom margin is what keeps a folded second line
+         from touching the first. -->
+    <Style Selector=":is(Control).toolbar">
+        <Setter Property="Margin" Value="0,0,10,4" />
+    </Style>
+
     <Style Selector="Button.primary">
         <Setter Property="MinWidth" Value="92" />
         <Setter Property="HorizontalContentAlignment" Value="Center" />

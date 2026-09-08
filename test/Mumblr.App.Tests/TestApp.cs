@@ -10,5 +10,8 @@ namespace Mumblr.App.Tests;
 public static class TestAppBuilder
 {
     public static AppBuilder BuildAvaloniaApp() =>
-        AppBuilder.Configure<Mumblr.App.App>().UseHeadless(new AvaloniaHeadlessPlatformOptions());
+        AppBuilder.Configure<Mumblr.App.App>()
+            // Same font as the real app, so headless layout measurements mean something.
+            .WithInterFont()
+            .UseHeadless(new AvaloniaHeadlessPlatformOptions());
 }
