@@ -167,7 +167,11 @@ public sealed class PromptLibrary
         body = body.Trim();
 
         // An empty prompt is not a prompt. Sending one would hand claude the header and no task.
-        return body.Length == 0 ? null : new PromptFile(label, order, body, path);
+        // A file that is nothing but rules counts as empty: `---` twice over is a placeholder
+        // somebody left behind, not an instruction, and it used to become a button saying "---".
+        return body.Trim('-', ' ', '\t', '\r', '\n').Length == 0
+            ? null
+            : new PromptFile(label, order, body, path);
     }
 
     /// <summary>One of the two keys this understands, which is what tells frontmatter from text.</summary>

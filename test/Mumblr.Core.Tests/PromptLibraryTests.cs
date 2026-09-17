@@ -166,6 +166,19 @@ public class PromptLibraryTests : IDisposable
     }
 
     [Fact]
+    public void A_file_that_is_nothing_but_rules_is_not_a_prompt()
+    {
+        // A placeholder somebody left behind. It used to become a button whose instruction to
+        // claude was, in full, "---".
+        Given("placeholder.md", "---\n---\n");
+
+        var loaded = Library.Load();
+
+        loaded.Prompts.ShouldBeEmpty();
+        Path.GetFileName(loaded.Skipped.ShouldHaveSingleItem().Path).ShouldBe("placeholder.md");
+    }
+
+    [Fact]
     public void Only_markdown_files_are_prompts()
     {
         Given("notes.txt", "Not a prompt.\n");

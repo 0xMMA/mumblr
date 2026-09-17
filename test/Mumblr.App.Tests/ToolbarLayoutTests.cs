@@ -86,12 +86,12 @@ public sealed class ToolbarLayoutTests : IDisposable
     public void The_default_width_has_room_for_one_more_control()
     {
         // The number the comment above used to quote, measured instead of remembered: every button
-        // added to the toolbar spends some of it, and the point at which it runs out is a wrap,
-        // not a clip - but it should not happen at the default size.
+        // added to the toolbar spends some of it. Summed rather than taken from the right-hand
+        // edge, because once the panel wraps that edge moves left and the slack looks bigger the
+        // fuller the toolbar gets - which is the one thing this must not do.
         var toolbar = Toolbar(Show());
-        var items = Items(toolbar).ToList();
 
-        var used = items.Max(item => item.Bounds.Right);
+        var used = Items(toolbar).Sum(item => item.Bounds.Width + item.Margin.Left + item.Margin.Right);
 
         (toolbar.Bounds.Width - used).ShouldBeGreaterThan(40);
     }

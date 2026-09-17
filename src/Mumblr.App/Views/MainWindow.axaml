@@ -90,7 +90,7 @@
 
                 <Button Classes="toolbar" Content="Prompts"
                         Command="{Binding OpenPromptsCommand}"
-                        ToolTip.Tip="Open the prompts folder. One markdown file per button above the command log - add, edit or delete one and the buttons follow." />
+                        ToolTip.Tip="Open the prompts folder. One markdown file per button above the command log - add, edit or delete one and the buttons follow. Delete the folder and press this again for the shipped prompts back." />
 
                 <StackPanel Classes="toolbar" Orientation="Horizontal" Spacing="4">
                     <Button Content="Config"

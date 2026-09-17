@@ -76,7 +76,13 @@ public static class PromptSeeding
         catch (Exception)
         {
             TryDelete(staging);
-            throw;
+
+            // Another window seeded first - Directory.Move refuses an existing destination rather
+            // than merging into it. The prompts are on disk, which is all this was for, so the
+            // entries still have to leave the config. Reporting a failure here would warn about
+            // nothing and write the dead key back on the next save, permanently.
+            if (!Directory.Exists(library.Directory))
+                throw;
         }
 
         // The buttons come from the files now. Leaving the entries behind would mean editing them
@@ -126,12 +132,12 @@ public static class PromptSeeding
             name = name[..cut].TrimEnd('-', '.', ' ');
         }
 
-        // Windows applies the device rule to the segment before the first dot, so con.txt.md is
-        // the console just as con.md is.
+        // Windows applies the device rule to the segment before the first dot - con.txt.md is the
+        // console just as con.md is - so the guard goes in front of it, not after the whole name.
         if (name.Length == 0)
             name = "prompt";
         else if (ReservedNames.Contains(name.Split('.')[0]))
-            name += "-prompt";
+            name = "prompt-" + name;
 
         return name;
     }

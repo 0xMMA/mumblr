@@ -140,6 +140,54 @@ public class PromptSeedingTests : IDisposable
         Path.GetFileNameWithoutExtension(prompt.Path).ToLowerInvariant().ShouldNotBe("con");
     }
 
+    [Theory]
+    [InlineData("CON.txt")]
+    [InlineData("aux.1")]
+    [InlineData("COM1.log")]
+    [InlineData("nul.md")]
+    public void A_reserved_name_with_an_extension_is_a_device_too(string label)
+    {
+        // Windows reads the segment before the first dot, so nul.tar.gz is the null device. A
+        // guard appended to the end of the name leaves that segment exactly as it was.
+        var config = new MumblrConfig
+        {
+            PrebuiltCommands = [new PrebuiltCommand { Label = label, Text = "a" }],
+        };
+
+        PromptSeeding.SeedIfMissing(Library, config);
+
+        var prompt = Library.Load().Prompts.ShouldHaveSingleItem();
+        var head = Path.GetFileName(prompt.Path).Split('.')[0].ToUpperInvariant();
+        head.ShouldNotBeOneOf("CON", "PRN", "AUX", "NUL", "COM1", "LPT1");
+    }
+
+    [Fact]
+    public void Losing_the_race_to_another_window_is_not_a_failure()
+    {
+        // Two windows starting at once. Directory.Move refuses an existing destination rather than
+        // merging into it - but the prompts are on disk, which is what this was for. Reporting a
+        // failure would warn about nothing and write the dead key back on the next save.
+        var theirs = new MumblrConfig();
+        PromptSeeding.SeedIfMissing(Library, theirs);
+
+        var mine = new MumblrConfig
+        {
+            PrebuiltCommands = [new PrebuiltCommand { Label = "Shorter", Text = "Halve it." }],
+        };
+
+        Directory.Delete(directory, recursive: true);
+        Directory.CreateDirectory(directory + ".other");
+
+        // Stand in for the other window finishing between the check and the move.
+        Should.NotThrow(() =>
+        {
+            Directory.CreateDirectory(directory);
+            PromptSeeding.SeedIfMissing(Library, mine);
+        });
+
+        Directory.Delete(directory + ".other", recursive: true);
+    }
+
     [Fact]
     public void A_very_long_label_does_not_become_a_very_long_path()
     {

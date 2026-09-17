@@ -63,6 +63,9 @@ public sealed class MainViewModelTests : IDisposable
 
     private string PromptDirectory => Path.Combine(workspace, "prompts");
 
+    /// <summary>Every watcher the view model asked for, so re-arming can be asserted.</summary>
+    private readonly List<string> watched = [];
+
     private MainViewModel CreateViewModel()
     {
         // No real FileSystemWatcher: it would post events into the dispatcher these tests pump,
@@ -71,7 +74,11 @@ public sealed class MainViewModelTests : IDisposable
         viewModel = new MainViewModel(
             workspace, editor, configStore, devices, capture, hotkeys, claude, engines, updates, attention,
             prompts: new PromptLibrary(PromptDirectory),
-            fileWatcherFactory: (_, _, _) => new NoWatcher());
+            fileWatcherFactory: (directory, filter, _) =>
+            {
+                watched.Add($"{directory}|{filter}");
+                return new NoWatcher();
+            });
         viewModel.Initialize();
         return viewModel;
     }
@@ -1263,6 +1270,9 @@ public sealed class MainViewModelTests : IDisposable
 
         viewModel.PrebuiltCommands.Select(c => c.Label).ShouldBe(["Grammar", "Prompt"]);
         Directory.GetFiles(PromptDirectory, "*.md").Length.ShouldBe(2);
+
+        // One watcher, not one per place that could have armed it.
+        watched.Count(w => w.StartsWith(PromptDirectory, StringComparison.Ordinal)).ShouldBe(1);
     }
 
     [AvaloniaFact]
@@ -1332,7 +1342,7 @@ public sealed class MainViewModelTests : IDisposable
         viewModel.OpenPromptsCommand.Execute(null);
 
         Directory.Exists(PromptDirectory).ShouldBeFalse();
-        viewModel.IsWarning.ShouldBeTrue();
+        viewModel.StatusMessage.ShouldContain("Fix it, then reload");
     }
 
     [AvaloniaFact]
@@ -1348,6 +1358,29 @@ public sealed class MainViewModelTests : IDisposable
         viewModel.ReloadConfigCommand.Execute(null);
 
         viewModel.PrebuiltCommands.Select(c => c.Label).ShouldBe(["Grammar", "Prompt"]);
+
+        // And the watcher is pointed at the folder again. The one built at startup gave up on a
+        // directory that did not exist, and a FileSystemWatcher never recovers from that.
+        watched.Count(w => w.StartsWith(PromptDirectory, StringComparison.Ordinal)).ShouldBe(2);
+    }
+
+    [AvaloniaFact]
+    public void A_prompt_file_that_was_fixed_stops_being_named()
+    {
+        // The warning names files. Leaving it up afterwards points at files that read fine now -
+        // or, if they were deleted rather than fixed, at files that are not there at all.
+        var viewModel = CreateViewModel();
+        var broken = Path.Combine(PromptDirectory, "notes.md");
+        File.WriteAllText(broken, "---\nlabel: Notes\n---\n");
+
+        viewModel.OnPromptsChanged();
+        viewModel.StatusMessage.ShouldContain("notes.md");
+
+        File.Delete(broken);
+        viewModel.OnPromptsChanged();
+
+        viewModel.StatusMessage.ShouldNotContain("notes.md");
+        viewModel.IsWarning.ShouldBeFalse();
     }
 
     [AvaloniaFact]

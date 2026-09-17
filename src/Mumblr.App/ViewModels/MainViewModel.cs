@@ -84,8 +84,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     /// <summary>Why the prompt files could not be written on start, if they could not.</summary>
     private string? promptSeedingFailure;
 
-    /// <summary>Whether seeding on start left a warning on the status line that has to survive.</summary>
-    private bool promptSeedingWarning;
+    /// <summary>The window is gone. Nothing may arm a watcher or touch a service after this.</summary>
+    private bool disposed;
 
     /// <summary>
     /// The prompt files that held no prompt the last time they were read. Kept so the window says
@@ -445,7 +445,6 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         // saving them back would replace the user's file - with their prompts still inside it -
         // before the warning below has even been drawn.
         SeedPrompts();
-        promptSeedingWarning = IsWarning;
 
         RefreshDevices();
         RefreshPrebuiltCommands();
@@ -458,15 +457,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         if (configBroken)
             Warn("config.json could not be read - running on defaults. Fix the file and press the reload button, "
                  + "or the next setting you change writes the defaults over it.");
+        else if (!HasApiKey)
+            Warn($"No API key. Set {ApiKeyProvider.PrimaryVariable} (or {ApiKeyProvider.FallbackVariable}) and restart.");
         else if (promptSeedingFailure is { Length: > 0 })
             // Said after RefreshDevices rather than where it happened: a missing microphone is
             // loud, and it used to warn over the one notice that the migration did not run.
             Warn(promptSeedingFailure);
-        else if (promptSeedingWarning && IsWarning)
-            // SeedPrompts already said something worth keeping - there is nothing to add.
-            Warn(StatusMessage);
-        else if (!HasApiKey)
-            Warn($"No API key. Set {ApiKeyProvider.PrimaryVariable} (or {ApiKeyProvider.FallbackVariable}) and restart.");
         else if (!IsWarning)
             // A device warning from RefreshDevices matters more than the file name, which the
             // toolbar shows anyway.
@@ -479,7 +475,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             Path.GetFileName(configStore.ConfigPath),
             () => Dispatcher.UIThread.Post(OnConfigFileChanged));
 
-        ArmPromptWatcher();
+        // Seeding arms one itself when it has just created the folder; this is for every other
+        // start, where the folder was already there.
+        if (promptWatcher is null)
+            ArmPromptWatcher();
 
         _ = CheckForUpdatesAsync();
     }
@@ -1399,18 +1398,15 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
-    /// Writes the prompt files if they are not there yet. False when the folder is not there and
-    /// must not be created - which is only ever because this session is running on a config that
-    /// did not parse, and seeding it would save those defaults over the user's file.
+    /// Writes the prompt files if they are not there yet. False when the folder is still not there
+    /// afterwards: either because writing it failed, or because this session is running on a config
+    /// that did not parse and seeding it would save those defaults over the user's file.
     /// </summary>
     private bool SeedPrompts()
     {
         if (Directory.Exists(prompts.Directory))
             return true;
 
-        // Whatever happens below, the folder was not there when the watcher was built, so the
-        // watcher gave up on a directory that does not exist and has been dead since.
-        var rearm = true;
 
         if (configBroken)
         {
@@ -1423,8 +1419,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             if (PromptSeeding.SeedIfMissing(prompts, config))
                 TrySaveConfig();
 
-            if (rearm)
-                ArmPromptWatcher();
+            promptSeedingFailure = null;
+
+            // The folder was not there a moment ago, so any watcher pointed at it gave up on a
+            // directory that does not exist and would never have recovered.
+            ArmPromptWatcher();
 
             RefreshPrebuiltCommands();
             return true;
@@ -1438,17 +1437,16 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
-    /// Rebuilds the command buttons from the prompt files. Does nothing at all when they have not
-    /// changed: one save raises several events, and replacing the collection would flicker the
-    /// buttons for no reason.
-    /// </summary>
-    /// <summary>
     /// Points a watcher at the prompt folder, replacing any earlier one. A FileSystemWatcher over
     /// a directory that does not exist watches nothing and never recovers, so the one that was
     /// built before the folder existed has to be replaced once it does.
     /// </summary>
     private void ArmPromptWatcher()
     {
+        // A reload can reach this from a command that finishes after the window was closed.
+        if (disposed)
+            return;
+
         promptWatcher?.Dispose();
         promptWatcher = fileWatcherFactory(
             prompts.Directory,
@@ -1456,6 +1454,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             () => Dispatcher.UIThread.Post(OnPromptsChanged));
     }
 
+    /// <summary>
+    /// Rebuilds the command buttons from the prompt files. Does nothing at all when they have not
+    /// changed: one save raises several events, and replacing the collection would flicker the
+    /// buttons for no reason.
+    /// </summary>
     private void RefreshPrebuiltCommands()
     {
         var loaded = prompts.Load();
@@ -1478,12 +1481,20 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         // when the set changes, not while it stays the same: this runs at the end of every take.
         var skipped = loaded.Skipped.Select(s => $"{Path.GetFileName(s.Path)} {s.Reason}").ToArray();
         var changedSet = !skipped.SequenceEqual(skippedPrompts, StringComparer.Ordinal);
+        var hadSkipped = skippedPrompts.Length > 0;
         skippedPrompts = skipped;
 
-        if (skipped.Length > 0 && changedSet)
+        if (!changedSet)
+            return;
+
+        if (skipped.Length > 0)
             Warn(skipped.Length == 1
                 ? $"{skipped[0]} and has no button."
                 : $"{skipped.Length} prompt files have no button: {string.Join(", ", skipped)}.");
+        else if (hadSkipped)
+            // The warning names files. Leaving it up after they were fixed or deleted would point
+            // at files that are not there any more.
+            Inform("Every prompt file reads now.");
     }
 
     /// <summary>
@@ -1768,6 +1779,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     public void Dispose()
     {
+        disposed = true;
+
         configWatcher?.Dispose();
         configWatcher = null;
 
