@@ -10,6 +10,24 @@ so `mumblr .` works from any folder. Open a new terminal afterwards - a `PATH` c
 reach one that is already running. In-app updates need a release feed the app can read; see the
 repository if the version button reports that it could not reach one.
 
+### Fixed in 0.2.2
+
+- **Stop is no longer swallowed by the command you press right after it.** Stopping a realtime
+  recording waits for the last segment, or up to five seconds. A command started inside that
+  window - the everyday "stop, then Grammar" - reached the session first, and when it finished it
+  put the recording back on: the microphone ran on and the taskbar started flashing again over a
+  take you had ended. Both presses are honoured now. The command runs, and the take ends when it
+  is done.
+- **A setting changed in one window reaches the others.** `mumblr .` is meant to be run per repo
+  folder, and all those windows share one `config.json`. Picking a microphone in the second window
+  used to reach the first only on a restart - and whichever window saved last quietly won. The
+  file is watched now. A change that arrives during a recording or a running command is applied
+  when that ends, never underneath it.
+- **Preview builds.** Releases tagged `-beta.N` are marked as pre-releases and carry `-win-beta-`
+  in their filenames. They update independently of the stable ones: install a preview build to get
+  previews, install a stable one to go back. There is no switch in the window, and your config is
+  untouched either way.
+
 ### Fixed in 0.2.1
 
 - **The toolbar no longer cuts off its last control.** It was a fixed grid of columns, so anything
