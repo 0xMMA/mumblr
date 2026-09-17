@@ -346,10 +346,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand(CanExecute = nameof(CanToggleHotkeys))]
     private void ToggleHotkeys() => HotkeysEnabled = !HotkeysEnabled;
 
-    public string RecordButtonText => IsRecording ? "Stop & copy" : "Record";
+    public string RecordButtonText => IsRecording ? "Stop" : "Record";
 
     public string RecordButtonTooltip => IsRecording
-        ? "Stop the recording. The whole buffer goes to the clipboard and the file stays on disk."
+        ? "Stop the recording. The text stays in the buffer and in the file - copy it when you are done."
               + Chord(config.Hotkeys.ToggleRecording)
         : "Start dictating. Text is appended where the caret is now, and the editor locks until you stop."
               + Chord(config.Hotkeys.ToggleRecording);
@@ -361,7 +361,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         + Chord(config.Hotkeys.CommandHoldKey, "hold ");
 
     public string CopyButtonTooltip =>
-        "Copy the whole buffer to the clipboard. Stopping a recording already does this."
+        "Copy the whole buffer to the clipboard."
         + Chord(config.Hotkeys.Copy);
 
     /// <summary>Names the chord only while it is actually registered, so the tip never lies.</summary>
@@ -559,16 +559,20 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         RefreshState();
 
         Flush();
-        await CopyToClipboardAsync(announce: false);
+
+        // Stop deliberately leaves the clipboard alone. A take is rarely one recording: you stop,
+        // think, record again, and run a command over the result. Copying on every stop would
+        // overwrite whatever you were holding, over and over, with a version you did not ask for.
+        // Copy is a button and a hotkey, used once, when the text is actually done.
 
         // IsWarning cannot carry this: Copy, Revert and Reload all call Inform and are reachable
         // in the middle of a take, so a Ctrl+Alt+C forty seconds after a refused session would
         // erase the only trace of it. This latch is set by the failure paths of this recording
         // and cleared when the next one starts, by nothing else.
         if (recordingFailure is { Length: > 0 })
-            Warn($"{recordingFailure} - stopped, buffer copied to the clipboard.");
+            Warn($"{recordingFailure} - stopped.");
         else
-            Inform("Stopped - buffer copied to the clipboard.");
+            Inform("Stopped.");
     }
 
     private async Task StartEngineAsync()

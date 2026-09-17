@@ -20,10 +20,14 @@ repository if the version button reports that it could not reach one.
   microphone picker, the level meter, the STT and language pickers and both config buttons carry
   a tooltip. The ones bound to a hotkey name the chord - and only while that chord is actually
   registered, so the tip stops naming it when the hotkeys are switched off.
-- **Clearer labels on the two buttons that do the most.** Record turns into **Stop & copy**,
-  because stopping puts the whole buffer on the clipboard and that was worth saying. The
-  hold-to-talk button is **Hold to edit**: it says what happens to the text rather than naming
-  the channel it runs on.
+- **Stopping no longer takes over your clipboard.** It used to copy the whole buffer on every
+  stop. But a take is rarely one recording: you stop, think, record again, and run a command over
+  the result - so the copy fired again and again, each time overwriting whatever you were holding
+  with a version you had not asked for. Copy is now only the **Copy** button and its hotkey, used
+  once, when the text is actually done. The file on disk is still written on every stop, so
+  nothing is ever at risk.
+- **The hold-to-talk button reads "Hold to edit".** It says what happens to the text rather than
+  naming the channel it runs on.
 
 ### Changed in 0.2.0
 

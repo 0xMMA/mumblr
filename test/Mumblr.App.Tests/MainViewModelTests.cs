@@ -194,7 +194,7 @@ public sealed class MainViewModelTests : IDisposable
     }
 
     [AvaloniaFact]
-    public async Task Stop_copies_the_buffer_and_flushes_the_file()
+    public async Task Stop_flushes_the_file_and_leaves_the_clipboard_alone()
     {
         var viewModel = CreateViewModel();
 
@@ -205,8 +205,31 @@ public sealed class MainViewModelTests : IDisposable
 
         viewModel.IsRecording.ShouldBeFalse();
         editor.IsReadOnly.ShouldBeFalse();
-        editor.Clipboard.ShouldBe("fertiger Text");
         File.ReadAllText(viewModel.DocumentPath).ShouldBe("fertiger Text");
+
+        // A take is several record/stop cycles plus a command; copying on each stop would
+        // overwrite the clipboard with a version nobody asked for.
+        editor.Clipboard.ShouldBeNull();
+    }
+
+    [AvaloniaFact]
+    public async Task Repeated_takes_never_touch_the_clipboard()
+    {
+        var viewModel = CreateViewModel();
+
+        for (var take = 0; take < 3; take++)
+        {
+            await viewModel.ToggleRecordingCommand.ExecuteAsync(null);
+            engines.Last!.Commit($"Satz {take}");
+            await PumpAsync();
+            await viewModel.ToggleRecordingCommand.ExecuteAsync(null);
+        }
+
+        editor.Clipboard.ShouldBeNull();
+
+        await viewModel.CopyCommand.ExecuteAsync(null);
+
+        editor.Clipboard.ShouldBe(editor.Text);
     }
 
     [AvaloniaFact]
@@ -370,7 +393,7 @@ public sealed class MainViewModelTests : IDisposable
     public async Task A_rejected_transcription_survives_the_stop_message()
     {
         // The whole reason issue #1 looked silent: the request was refused, and the routine
-        // "Stopped - buffer copied" line then overwrote the only trace of it.
+        // stop line then overwrote the only trace of it.
         var viewModel = CreateViewModel();
         await viewModel.ToggleRecordingCommand.ExecuteAsync(null);
         engines.Last!.FailureOnStop = new HttpRequestException("400 Some keyword contains invalid characters");
@@ -380,7 +403,7 @@ public sealed class MainViewModelTests : IDisposable
 
         viewModel.IsWarning.ShouldBeTrue();
         viewModel.StatusMessage.ShouldContain("invalid characters");
-        viewModel.StatusMessage.ShouldContain("buffer copied");
+        viewModel.StatusMessage.ShouldContain("stopped");
     }
 
     [AvaloniaFact]
@@ -409,7 +432,7 @@ public sealed class MainViewModelTests : IDisposable
         await PumpAsync();
 
         viewModel.IsWarning.ShouldBeFalse();
-        viewModel.StatusMessage.ShouldBe("Stopped - buffer copied to the clipboard.");
+        viewModel.StatusMessage.ShouldBe("Stopped.");
     }
 
     [AvaloniaFact]
@@ -617,7 +640,7 @@ public sealed class MainViewModelTests : IDisposable
         await PumpAsync();
 
         viewModel.IsWarning.ShouldBeFalse();
-        viewModel.StatusMessage.ShouldBe("Stopped - buffer copied to the clipboard.");
+        viewModel.StatusMessage.ShouldBe("Stopped.");
     }
 
     [AvaloniaFact]

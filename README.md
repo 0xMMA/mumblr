@@ -31,8 +31,8 @@ channel. mumblr is free and talks to nothing besides those two.
 
 A voice recorder built around one loop: thinking out loud while you develop, and turning that into
 text a coding agent can use. It is deliberately narrow - one markdown file in the folder you start
-it from, the whole buffer on your clipboard when you stop, and spoken edits handed to your local
-Claude Code. Nothing stops you dictating a shopping list with it; nothing is optimized for that
+it from, spoken edits handed to your local Claude Code, and the whole buffer on your clipboard the
+moment you ask for it. Nothing stops you dictating a shopping list with it; nothing is optimized for that
 either. The roadmap follows the development loop: prompts, notes, commit messages, the things you
 say to an agent.
 
@@ -42,9 +42,9 @@ mumblr .
 
 That creates `dictated-<timestamp>.md` in the current folder and opens a window. Next to it go
 `dictated-<timestamp>.wav`, the audio, and `dictated-<timestamp>.raw.md`, what speech-to-text
-produced (after the dictionary pass) and nothing an LLM wrote. Talk, press stop, and the whole
-buffer is on your clipboard while the files stay on disk for any Claude Code session to read by
-path.
+produced (after the dictionary pass) and nothing an LLM wrote. Talk, press stop, record again,
+run a command over the result - the files stay on disk for any Claude Code session to read by
+path, and **Copy** puts the whole buffer on your clipboard when you are actually done.
 
 ## The two channels
 

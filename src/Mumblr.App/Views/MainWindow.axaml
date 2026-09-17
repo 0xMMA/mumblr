@@ -19,6 +19,8 @@
                  window instead of clipping whichever control sits last. -->
             <WrapPanel Orientation="Horizontal">
 
+                <!-- Wide enough for both labels, so starting a recording does not resize the
+                     button and shift everything after it. -->
                 <Button Classes="primary toolbar"
                         MinWidth="118"
                         Command="{Binding ToggleRecordingCommand}"
