@@ -1460,6 +1460,26 @@ public sealed class MainViewModelTests : IDisposable
     }
 
     [AvaloniaFact]
+    public void A_marker_without_the_files_is_not_licence_to_drop_the_config_key()
+    {
+        // The marker says the files were written once, not that they are there now. A sync client
+        // or a partial restore can bring back the small marker without the larger files, and
+        // clearing the key over that deletes the only copy of what the user wrote.
+        var viewModel = CreateViewModel();
+        AnotherWindowWrites(c => c.PrebuiltCommands =
+            [new PrebuiltCommand { Label = "Mine", Text = "Only in the config." }]);
+
+        foreach (var file in Directory.GetFiles(PromptDirectory, "*.md"))
+            File.Delete(file);
+
+        viewModel.ReloadConfigCommand.Execute(null);
+
+        new ConfigStore(configStore.ConfigPath).Load().PrebuiltCommands
+            .ShouldNotBeNull()
+            .ShouldHaveSingleItem().Text.ShouldBe("Only in the config.");
+    }
+
+    [AvaloniaFact]
     public void A_prompt_file_that_was_fixed_stops_being_named()
     {
         // The warning names files. Leaving it up afterwards points at files that read fine now -

@@ -117,8 +117,12 @@ lines verbatim.
 - **What says "already written" is the `.seeded` marker, never the directory.** Anything can create
   a directory - a sync client putting one back, a backup, the user - and four separate ways to lose
   somebody's prompts came out of reading one as proof. The marker is written last, after every
-  entry has a file of its own, and the config keeps its entries until it is down. Seeding is safe
-  to run again: a file that is already there is kept when it holds exactly what the entry would
-  write, and otherwise the entry goes to the next free name - because "the file exists" is not the
-  same claim as "its contents are ours", and the fifth way to lose a prompt was treating it as one.
+  entry has a file of its own. Seeding is safe to run again: a file that is already there is kept
+  when it holds exactly what the entry would write, and otherwise the entry goes to the next free
+  name - because "the file exists" is not the same claim as "its contents are ours", and the fifth
+  way to lose a prompt was treating it as one.
+- **What earns the right to drop `prebuiltCommands` is the files, never the marker.** `SeedIfMissing`
+  earns it by putting every entry on disk in the same run. Anywhere else - `MainViewModel` cleaning
+  up a key that outlived a failed save - has to look at the folder: the marker says the files were
+  written once, and a restore can bring it back without them.
 - **Check CLI flags against `claude --help`,** never against memory.

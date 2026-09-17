@@ -178,8 +178,9 @@ repository would let a repo you cloned run its own instructions over what you di
 
 Deleting a file keeps it deleted. Deleting the whole folder is how you ask for the shipped two
 back: press **Prompts** afterwards, or restart. What mumblr goes by is the `.seeded` file it writes
-in there once - delete that alone and it writes back whichever of the shipped prompts are
-missing, leaving everything else as it is.
+in there once - delete that alone and it writes back whichever of the shipped prompts are missing.
+One it wrote and you then edited counts as missing: it comes back beside your copy rather than over
+it, so you get two buttons and delete the one you do not want.
 
 ### Preview builds
 

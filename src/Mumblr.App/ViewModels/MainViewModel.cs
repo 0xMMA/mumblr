@@ -1397,6 +1397,20 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>True when there is at least one prompt file to have migrated into.</summary>
+    private bool HoldsAnyPrompt()
+    {
+        try
+        {
+            return Directory.EnumerateFiles(prompts.Directory, "*.md").Any();
+        }
+        catch (Exception)
+        {
+            // Gone or unreadable. Not something to drop somebody's only copy over.
+            return false;
+        }
+    }
+
     /// <summary>
     /// Writes the prompt files if that has not happened yet. False when it could not: either the
     /// writing failed, or this session is running on a config that did not parse and seeding it
@@ -1410,7 +1424,13 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             // a read-only config, or another window that got there first. Left alone, the entries
             // would be written back on every later save and would come back as buttons the next
             // time somebody deletes the folder.
-            if (config.PrebuiltCommands is not null)
+            //
+            // The marker alone is not licence to drop them. It says the files were written once,
+            // not that they are there now: a sync client or a partial restore can bring back the
+            // small marker without the larger files, and clearing the key over that would delete
+            // the only remaining copy of what the user wrote. SeedIfMissing earns the right to
+            // clear it by putting every entry on disk; here it has to be checked.
+            if (config.PrebuiltCommands is { } stale && (stale.Count == 0 || HoldsAnyPrompt()))
             {
                 config.PrebuiltCommands = null;
                 TrySaveConfig();

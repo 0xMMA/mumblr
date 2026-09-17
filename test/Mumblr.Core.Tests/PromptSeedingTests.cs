@@ -302,6 +302,33 @@ public class PromptSeedingTests : IDisposable
     }
 
     [Fact]
+    public void An_entry_with_no_label_keeps_its_text()
+    {
+        // Reachable by hand editing, or by a "label": null that the loader strips. Only the text
+        // makes it a prompt, and dropping the entry would take that text with it.
+        var config = new MumblrConfig
+        {
+            PrebuiltCommands = [new PrebuiltCommand { Label = "  ", Text = "Still worth keeping." }],
+        };
+
+        PromptSeeding.SeedIfMissing(Library, config);
+
+        Library.Load().Prompts.ShouldHaveSingleItem().Text.ShouldBe("Still worth keeping.");
+    }
+
+    [Fact]
+    public void A_copy_of_our_own_text_in_another_encoding_is_not_counted_as_ours()
+    {
+        // Holds and Load have to agree about a file. If Holds said "ours" where Load refuses it,
+        // the entry would be skipped over a file that never gets a button.
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, "grammar.md");
+        File.WriteAllText(path, Library.Render("Grammar", 10, "Fix grammar."), System.Text.Encoding.Unicode);
+
+        PromptLibrary.Holds(path, Library.Render("Grammar", 10, "Fix grammar.")).ShouldBeFalse();
+    }
+
+    [Fact]
     public void A_very_long_label_does_not_become_a_very_long_path()
     {
         var config = new MumblrConfig

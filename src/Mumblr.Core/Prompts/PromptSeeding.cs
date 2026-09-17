@@ -63,7 +63,10 @@ public static class PromptSeeding
 
         foreach (var command in source)
         {
-            if (string.IsNullOrWhiteSpace(command.Label) || string.IsNullOrWhiteSpace(command.Text))
+            // Only the text makes it a prompt. An entry with a blank label - reachable by hand
+            // editing, or by a "label": null that the loader strips - still gets a file, named
+            // after itself, because dropping it would take its text with it.
+            if (string.IsNullOrWhiteSpace(command.Text))
                 continue;
 
             var label = command.Label.Trim();

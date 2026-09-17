@@ -107,16 +107,20 @@ public sealed class PromptLibrary
             .Append('\n')
             .ToString();
 
-    /// <summary>True when the file is there and holds exactly this, byte for byte.</summary>
+    /// <summary>
+    /// True when the file is there and holds exactly this. Read the same strict way <see cref="Load"/>
+    /// reads it, so the two can never disagree about a file: a UTF-16 copy of our own text would
+    /// otherwise count as ours here and be refused a button there.
+    /// </summary>
     public static bool Holds(string path, string content)
     {
         try
         {
-            return File.Exists(path) && File.ReadAllText(path) == content;
+            return File.Exists(path) && Read(path) == content;
         }
         catch (Exception)
         {
-            // Locked or unreadable: not something to write over, and not something to count as ours.
+            // Locked, unreadable, or not UTF-8: not something to write over, and not ours.
             return false;
         }
     }
