@@ -123,7 +123,10 @@ $dir = "C:\where\you\unzipped"
 [Environment]::SetEnvironmentVariable('Path', "$([Environment]::GetEnvironmentVariable('Path','User'));$dir", 'User')
 ```
 
-Everything else lives in `%APPDATA%\mumblr\config.json` (the **Config** button opens it):
+Everything else lives in `%APPDATA%\mumblr\config.json` (the **Config** button opens it). One
+file, shared by every window: `mumblr .` is meant to be run per repo folder, and a setting changed
+in one window reaches the others by itself. A change that arrives during a recording or a running
+command waits for it to end rather than swapping the microphone underneath it.
 
 | Setting | Meaning |
 |---|---|

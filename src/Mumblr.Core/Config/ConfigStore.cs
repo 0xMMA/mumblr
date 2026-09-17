@@ -14,6 +14,13 @@ public sealed class ConfigStore
         Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() },
     };
 
+    /// <summary>
+    /// The text last read from or written to the file. Every window saves the whole config -
+    /// picking a microphone is a save - so a watcher needs to tell a change by another window from
+    /// the echo of its own write.
+    /// </summary>
+    private string? lastSeen;
+
     public ConfigStore(string configPath) => ConfigPath = configPath;
 
     public string ConfigPath { get; }
@@ -36,7 +43,10 @@ public sealed class ConfigStore
 
         try
         {
-            var config = Parse(File.ReadAllText(ConfigPath));
+            var raw = File.ReadAllText(ConfigPath);
+            lastSeen = raw;
+
+            var config = Parse(raw);
 
             if (ConfigMigration.Apply(config))
                 TrySave(config);
@@ -123,7 +133,8 @@ public sealed class ConfigStore
         // Named per process: two mumblr windows share this file, and one temp name would let them
         // write the same one and move a half-finished file into place.
         var temporary = $"{ConfigPath}.{Environment.ProcessId}.tmp";
-        File.WriteAllText(temporary, JsonSerializer.Serialize(config, Options));
+        var json = JsonSerializer.Serialize(config, Options);
+        File.WriteAllText(temporary, json);
 
         try
         {
@@ -133,6 +144,26 @@ public sealed class ConfigStore
         {
             TryDelete(temporary);
             throw;
+        }
+
+        lastSeen = json;
+    }
+
+    /// <summary>
+    /// True when the file holds something other than what this store last read or wrote - which is
+    /// the only interesting case for a watcher, since the app's own saves fire the same events.
+    /// </summary>
+    public bool ChangedOnDisk()
+    {
+        try
+        {
+            return File.ReadAllText(ConfigPath) != lastSeen;
+        }
+        catch (Exception)
+        {
+            // Gone, locked, or caught mid-move. Nothing to reload from right now, and the write
+            // that is landing raises its own event.
+            return false;
         }
     }
 }

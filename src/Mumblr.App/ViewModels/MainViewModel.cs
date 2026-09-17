@@ -12,6 +12,7 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Mumblr.App.Attention;
+using Mumblr.App.Config;
 using Mumblr.App.Audio;
 using Mumblr.App.Hotkeys;
 using Mumblr.App.Updates;
@@ -72,6 +73,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     /// <summary>True while the global chords are actually registered, so tooltips can name them.</summary>
     private bool hotkeysActive;
+
+    /// <summary>Another window wrote the shared config while this one was busy. Applied on the way back to Idle.</summary>
+    private bool configReloadPending;
+
+    private ConfigFileWatcher? configWatcher;
 
     /// <summary>The window between a command being asked for and the Commanding state.</summary>
     private bool CommandStarting
@@ -406,7 +412,49 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         suppressConfigSave = false;
 
+        configWatcher = new ConfigFileWatcher(
+            configStore.ConfigPath,
+            () => Dispatcher.UIThread.Post(OnConfigFileChanged));
+
         _ = CheckForUpdatesAsync();
+    }
+
+    /// <summary>
+    /// The shared config.json changed on disk - another window picked a microphone, or the file was
+    /// edited while this window was open. Public because the watcher is deliberately thin: it says
+    /// "something happened", and every decision about what that is worth lives here.
+    /// </summary>
+    public void OnConfigFileChanged()
+    {
+        // Our own saves raise the same events, and one write raises several.
+        if (!configStore.ChangedOnDisk())
+            return;
+
+        // Nobody asked for this reload, so it waits for a quiet moment. Applying it would restart
+        // the hotkey service under a running hold and swap the microphone and the STT mode under a
+        // take that is already recording with the old ones.
+        if (machine.State != SessionState.Idle || commandStarting || activeCommand is not null)
+        {
+            configReloadPending = true;
+            return;
+        }
+
+        LoadConfigFromDisk();
+
+        if (!IsWarning)
+            Inform("Config changed on disk - reloaded.");
+    }
+
+    /// <summary>Applies a reload that arrived while the session was busy, now that it is not.</summary>
+    private void ApplyPendingConfigReload()
+    {
+        if (!configReloadPending || machine.State != SessionState.Idle || activeCommand is not null)
+            return;
+
+        LoadConfigFromDisk();
+
+        if (!IsWarning)
+            Inform("Config changed on disk - reloaded.");
     }
 
     private async Task<UpdateService.UpdateCheck> CheckForUpdatesAsync()
@@ -604,6 +652,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             Warn($"{recordingFailure} - stopped.");
         else
             Inform("Stopped.");
+
+        ApplyPendingConfigReload();
     }
 
     private async Task StartEngineAsync()
@@ -1068,6 +1118,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 RefreshState();
             }
         }
+
+        // Refused unless the session actually came to rest, so a resumed recording keeps it waiting.
+        ApplyPendingConfigReload();
     }
 
     [RelayCommand]
@@ -1232,6 +1285,19 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
+        LoadConfigFromDisk();
+
+        // RefreshDevices may have warned that the configured microphone is gone; that outranks
+        // the news that the config was read.
+        if (!IsWarning)
+            Inform("Config reloaded.");
+    }
+
+    /// <summary>Reads the file and applies everything in it that can change without a restart.</summary>
+    private void LoadConfigFromDisk()
+    {
+        configReloadPending = false;
+
         config = configStore.Load();
         postProcessor = new TextPostProcessor(config.Dictionary);
 
@@ -1244,11 +1310,6 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         ApplyHotkeys();
         RefreshDevices();
         RefreshPrebuiltCommands();
-
-        // RefreshDevices may have warned that the configured microphone is gone; that outranks
-        // the news that the config was read.
-        if (!IsWarning)
-            Inform("Config reloaded.");
     }
 
     partial void OnSelectedDeviceChanged(AudioDeviceInfo? value)
@@ -1439,6 +1500,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     public void Dispose()
     {
+        configWatcher?.Dispose();
+        configWatcher = null;
+
         hotkeys.Dispose();
         capture.Dispose();
 

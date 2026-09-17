@@ -48,6 +48,18 @@ public sealed class MainViewModelTests : IDisposable
         Directory.CreateDirectory(configStore.ConfigPath);
     }
 
+    /// <summary>
+    /// A second mumblr window saving the shared file. Its own store, so its own idea of what was
+    /// last written - which is what tells this window's echo from someone else's change.
+    /// </summary>
+    private void AnotherWindowWrites(Action<MumblrConfig> change)
+    {
+        var other = new ConfigStore(configStore.ConfigPath);
+        var theirs = other.Load();
+        change(theirs);
+        other.Save(theirs);
+    }
+
     private MainViewModel CreateViewModel()
     {
         viewModel = new MainViewModel(workspace, editor, configStore, devices, capture, hotkeys, claude, engines, updates, attention);
@@ -1211,6 +1223,84 @@ public sealed class MainViewModelTests : IDisposable
 
         claude.Calls.Count.ShouldBe(1);
         editor.Text.ShouldBe("Erster Satz.");
+    }
+
+    // ---------------------------------------------------------------- the shared config file
+
+    [AvaloniaFact]
+    public void A_config_written_by_another_window_is_picked_up()
+    {
+        // One config.json, one per-repo window each: the second window's microphone used to reach
+        // the first only on a restart, and whoever saved last silently won.
+        var viewModel = CreateViewModel();
+
+        AnotherWindowWrites(c => c.SttMode = SttMode.Batch);
+        viewModel.OnConfigFileChanged();
+
+        viewModel.SelectedSttMode.ShouldBe(SttMode.Batch);
+        viewModel.StatusMessage.ShouldBe("Config changed on disk - reloaded.");
+    }
+
+    [AvaloniaFact]
+    public void A_save_by_this_window_is_not_read_back_as_a_change()
+    {
+        // Every setting is saved as the whole file, so the window's own writes raise the same
+        // events. Reloading them would restart the hotkey service on every microphone pick.
+        var viewModel = CreateViewModel();
+        viewModel.SelectedSttMode = SttMode.Batch;
+        var statusBefore = viewModel.StatusMessage;
+        var startsBefore = hotkeys.Starts;
+
+        viewModel.OnConfigFileChanged();
+
+        viewModel.StatusMessage.ShouldBe(statusBefore);
+        hotkeys.Starts.ShouldBe(startsBefore);
+    }
+
+    [AvaloniaFact]
+    public async Task A_config_change_during_a_take_waits_for_the_stop()
+    {
+        // Nobody asked for this reload, so it does not get to swap the backend, the microphone or
+        // the hotkeys under a recording that is already running with the old ones.
+        var viewModel = CreateViewModel();
+        await viewModel.ToggleRecordingCommand.ExecuteAsync(null);
+
+        AnotherWindowWrites(c => c.SttMode = SttMode.Batch);
+        viewModel.OnConfigFileChanged();
+
+        viewModel.SelectedSttMode.ShouldBe(SttMode.Realtime);
+
+        await viewModel.ToggleRecordingCommand.ExecuteAsync(null);
+        await PumpAsync();
+
+        viewModel.SelectedSttMode.ShouldBe(SttMode.Batch);
+        viewModel.StatusMessage.ShouldBe("Config changed on disk - reloaded.");
+    }
+
+    [AvaloniaFact]
+    public async Task A_config_change_during_a_command_waits_for_it_to_finish()
+    {
+        var viewModel = CreateViewModel();
+        editor.Text = "Erster Satz. Zweiter Satz.";
+        claude.FileContentAfterRun = "Erster Satz.";
+        // Read out here rather than asserted inside the runner: a failed assertion in there is
+        // caught by the command's own error handling and the test would pass on the wrong reason.
+        SttMode? modeWhileClaudeRan = null;
+        claude.AsyncBehaviour = async (_, _) =>
+        {
+            AnotherWindowWrites(c => c.SttMode = SttMode.Batch);
+            viewModel!.OnConfigFileChanged();
+            modeWhileClaudeRan = viewModel.SelectedSttMode;
+            await Task.Yield();
+            return new CommandResult(true, "Removed the last sentence.", "{}", TimeSpan.FromSeconds(1));
+        };
+
+        await viewModel.RunPrebuiltCommand.ExecuteAsync(viewModel.PrebuiltCommands[0]);
+        await PumpAsync();
+
+        claude.Calls.Count.ShouldBe(1);
+        modeWhileClaudeRan.ShouldBe(SttMode.Realtime);
+        viewModel.SelectedSttMode.ShouldBe(SttMode.Batch);
     }
 
     // ---------------------------------------------------------------- attention
