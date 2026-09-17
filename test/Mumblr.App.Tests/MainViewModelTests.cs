@@ -13,6 +13,13 @@ namespace Mumblr.App.Tests;
 
 public sealed class MainViewModelTests : IDisposable
 {
+    private sealed class NoWatcher : IDisposable
+    {
+        public void Dispose()
+        {
+        }
+    }
+
     private readonly string workspace = Path.Combine(Path.GetTempPath(), $"mumblr-{Guid.NewGuid():N}");
     private readonly FakeEditorHost editor = new();
     private readonly FakeDeviceEnumerator devices = new();
@@ -62,7 +69,12 @@ public sealed class MainViewModelTests : IDisposable
 
     private MainViewModel CreateViewModel()
     {
-        viewModel = new MainViewModel(workspace, editor, configStore, devices, capture, hotkeys, claude, engines, updates, attention);
+        // No real FileSystemWatcher: it would post events into the dispatcher these tests pump,
+        // from a thread-pool thread, on timing the test does not control. The decision the watcher
+        // feeds is driven directly through OnConfigFileChanged instead.
+        viewModel = new MainViewModel(
+            workspace, editor, configStore, devices, capture, hotkeys, claude, engines, updates, attention,
+            configWatcherFactory: (_, _) => new NoWatcher());
         viewModel.Initialize();
         return viewModel;
     }
@@ -314,6 +326,8 @@ public sealed class MainViewModelTests : IDisposable
         // failed silently and the command handed the session back to Recording: Stop was swallowed
         // and the taskbar started flashing again over a recording the user had ended.
         var viewModel = CreateViewModel();
+        editor.Text = "Erster Satz. Zweiter Satz.";
+        claude.FileContentAfterRun = "Erster Satz.";
         await viewModel.ToggleRecordingCommand.ExecuteAsync(null);
 
         var pause = new TaskCompletionSource();
@@ -330,8 +344,10 @@ public sealed class MainViewModelTests : IDisposable
         hotkeys.ReleaseCommandKey();
         await PumpAsync();
 
-        // Both presses are honoured: the command ran, and the recording is over.
+        // Both presses are honoured: the command ran, changed the file, and the recording is over.
         claude.Calls.Count.ShouldBe(1);
+        editor.Text.ShouldBe("Erster Satz.");
+        viewModel.CommandLog[0].Status.ShouldBe(CommandStatus.Succeeded);
         viewModel.IsCommanding.ShouldBeFalse();
         viewModel.IsRecording.ShouldBeFalse();
         engines.Created.Count.ShouldBe(1);
@@ -824,6 +840,22 @@ public sealed class MainViewModelTests : IDisposable
     }
 
     [AvaloniaFact]
+    public async Task A_channel_with_no_release_is_not_reported_as_being_up_to_date()
+    {
+        // A preview install whose channel holds nothing - the betas were deleted, or none was ever
+        // cut. Velopack answers that with the same null it uses for "you have the newest".
+        var viewModel = CreateViewModel();
+        updates.Outcome = UpdateService.UpdateCheck.NoReleases;
+
+        await viewModel.UseVersionButtonCommand.ExecuteAsync(null);
+        await PumpAsync();
+
+        viewModel.IsWarning.ShouldBeTrue();
+        viewModel.StatusMessage.ShouldContain("No release on this build's channel");
+        viewModel.HasUpdate.ShouldBeFalse();
+    }
+
+    [AvaloniaFact]
     public async Task An_unpackaged_build_says_so_instead_of_claiming_to_be_current()
     {
         var viewModel = CreateViewModel();
@@ -1274,7 +1306,118 @@ public sealed class MainViewModelTests : IDisposable
         await PumpAsync();
 
         viewModel.SelectedSttMode.ShouldBe(SttMode.Batch);
-        viewModel.StatusMessage.ShouldBe("Config changed on disk - reloaded.");
+
+        // One sentence, not two: the stop said "Stopped." and the reload used to overwrite it.
+        viewModel.StatusMessage.ShouldBe("Stopped. The config changed on disk and was reloaded.");
+    }
+
+    [AvaloniaFact]
+    public async Task A_config_change_does_not_land_while_a_hold_is_only_starting()
+    {
+        // Between the hold key going down and the Commanding state there are up to five seconds
+        // while channel 1 is paused. The machine still reads Recording and activeCommand is still
+        // null in there, but a key is physically held: reloading would reinstall the keyboard hook
+        // underneath it and the key-up would never be seen.
+        var viewModel = CreateViewModel();
+        await viewModel.ToggleRecordingCommand.ExecuteAsync(null);
+
+        AnotherWindowWrites(c => c.SttMode = SttMode.Batch);
+        viewModel.OnConfigFileChanged();
+
+        var pause = new TaskCompletionSource();
+        engines.Last!.StopGate = pause;
+
+        hotkeys.PressCommandKey();
+        await PumpAsync();
+
+        // The stop lands while the hold is still starting, and takes the session to Idle.
+        var startsBefore = hotkeys.Starts;
+        var stopping = viewModel.ToggleRecordingCommand.ExecuteAsync(null);
+        await PumpAsync();
+
+        viewModel.SelectedSttMode.ShouldBe(SttMode.Realtime);
+        hotkeys.Starts.ShouldBe(startsBefore);
+
+        pause.SetResult();
+        await stopping;
+        capture.Emit(new byte[640]);
+        hotkeys.ReleaseCommandKey();
+        await PumpAsync();
+
+        viewModel.SelectedSttMode.ShouldBe(SttMode.Batch);
+    }
+
+    [AvaloniaFact]
+    public void A_hotkey_switch_flipped_in_another_window_is_said_out_loud()
+    {
+        // The switch is a privacy control over a system-wide keyboard hook. Propagating "off" is
+        // the point; "on" arriving by itself, from a window the user is not looking at, is the
+        // half that must not be silent.
+        var viewModel = CreateViewModel();
+        viewModel.HotkeysEnabled.ShouldBeTrue();
+
+        AnotherWindowWrites(c => c.Hotkeys.Enabled = false);
+        viewModel.OnConfigFileChanged();
+
+        viewModel.HotkeysEnabled.ShouldBeFalse();
+        viewModel.IsWarning.ShouldBeTrue();
+        viewModel.StatusMessage.ShouldContain("hotkeys are off");
+
+        AnotherWindowWrites(c => c.Hotkeys.Enabled = true);
+        viewModel.OnConfigFileChanged();
+
+        viewModel.HotkeysEnabled.ShouldBeTrue();
+        viewModel.IsWarning.ShouldBeTrue();
+        viewModel.StatusMessage.ShouldContain("hotkeys are on");
+    }
+
+    [AvaloniaFact]
+    public void A_config_that_cannot_be_parsed_is_not_adopted_as_defaults()
+    {
+        // Adopting defaults here loses every keyterm, prompt and chord in memory - and the next
+        // setting change writes them over the file the user is in the middle of fixing.
+        var viewModel = CreateViewModel();
+        viewModel.SelectedSttMode = SttMode.Batch;
+
+        File.WriteAllText(configStore.ConfigPath, "{ this is not json");
+        viewModel.OnConfigFileChanged();
+
+        viewModel.SelectedSttMode.ShouldBe(SttMode.Batch);
+        viewModel.IsWarning.ShouldBeTrue();
+        viewModel.StatusMessage.ShouldContain("could not be read");
+    }
+
+    [AvaloniaFact]
+    public void The_reload_button_refuses_a_config_it_cannot_parse()
+    {
+        var viewModel = CreateViewModel();
+        viewModel.SelectedSttMode = SttMode.Batch;
+
+        File.WriteAllText(configStore.ConfigPath, "{ this is not json");
+        viewModel.ReloadConfigCommand.Execute(null);
+
+        viewModel.SelectedSttMode.ShouldBe(SttMode.Batch);
+        viewModel.IsWarning.ShouldBeTrue();
+        viewModel.StatusMessage.ShouldContain("could not be read");
+    }
+
+    [AvaloniaFact]
+    public void Applying_another_windows_config_does_not_write_it_straight_back()
+    {
+        // A key this build does not know - which is what a preview build's config looks like to a
+        // stable one now that the two ship side by side. MumblrConfig drops unknown properties on
+        // load, so a reload that echoed the file back would delete it, wake the other window, and
+        // the two would write at each other for as long as both are open.
+        var viewModel = CreateViewModel();
+        AnotherWindowWrites(c => c.SttMode = SttMode.Batch);
+
+        var raw = File.ReadAllText(configStore.ConfigPath).TrimEnd();
+        File.WriteAllText(configStore.ConfigPath, raw[..raw.LastIndexOf('}')] + ",\n  \"somethingNewer\": 1\n}");
+
+        viewModel.OnConfigFileChanged();
+
+        viewModel.SelectedSttMode.ShouldBe(SttMode.Batch);
+        File.ReadAllText(configStore.ConfigPath).ShouldContain("somethingNewer");
     }
 
     [AvaloniaFact]

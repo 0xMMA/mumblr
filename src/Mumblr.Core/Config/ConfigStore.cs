@@ -3,6 +3,11 @@ using System.Text.Json.Nodes;
 
 namespace Mumblr.Core.Config;
 
+/// <summary>What a load produced: the config to work with, and whether the file was readable.</summary>
+/// <param name="Config">The parsed file, or a fresh default when it could not be parsed.</param>
+/// <param name="Broken">True when the file exists but could not be read or parsed.</param>
+public sealed record ConfigLoad(MumblrConfig Config, bool Broken);
+
 /// <summary>Loads and saves <see cref="MumblrConfig"/> as a single JSON file.</summary>
 public sealed class ConfigStore
 {
@@ -32,13 +37,20 @@ public sealed class ConfigStore
 
     public static ConfigStore Default() => new(DefaultConfigPath);
 
-    public MumblrConfig Load()
+    public MumblrConfig Load() => LoadDetailed().Config;
+
+    /// <summary>
+    /// The same load, plus whether the file could actually be read. The difference matters to
+    /// anyone who reloads while the app is running: adopting defaults there and saving them back
+    /// on the next setting change would erase the file the user is in the middle of fixing.
+    /// </summary>
+    public ConfigLoad LoadDetailed()
     {
         if (!File.Exists(ConfigPath))
         {
             var fresh = new MumblrConfig();
             TrySave(fresh);
-            return fresh;
+            return new ConfigLoad(fresh, Broken: false);
         }
 
         try
@@ -51,13 +63,14 @@ public sealed class ConfigStore
             if (ConfigMigration.Apply(config))
                 TrySave(config);
 
-            return config;
+            return new ConfigLoad(config, Broken: false);
         }
         catch (Exception)
         {
-            // A broken config must never stop the app from recording. It is left on disk exactly
-            // as it is: the next Save overwrites it, and until then the file is the user's to fix.
-            return new MumblrConfig();
+            // A broken config must never stop the app from recording, so a caller that has nothing
+            // yet - the constructor - gets defaults. It is left on disk exactly as it is, and the
+            // caller is told, because silently replacing it is how a typo costs every setting.
+            return new ConfigLoad(new MumblrConfig(), Broken: true);
         }
     }
 

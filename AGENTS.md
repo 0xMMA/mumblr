@@ -101,7 +101,7 @@ lines verbatim.
 - **`vpk upload` reads the asset names from its own manifest, not from the directory.** Renaming a
   file between `pack` and `upload` fails with "Could not find file" and leaves a draft release
   holding only the `.nupkg`. Rename on the release afterwards, through the GitHub API —
-  `releases.win.json` references only the `.nupkg`, so the installer and the portable zip are free
+  `releases.<channel>.json` references only the `.nupkg`, so the installer and the portable zip are free
   to be renamed.
 - **`strings` reads ASCII by default and .NET literals are UTF-16.** Plain `strings` reports a
   shipped string as missing when it is there. Use `strings -el`.

@@ -11,7 +11,8 @@ namespace Mumblr.App.Config;
 /// </summary>
 public sealed class ConfigFileWatcher : IDisposable
 {
-    private readonly FileSystemWatcher? watcher;
+    private readonly Action changed;
+    private FileSystemWatcher? watcher;
 
     /// <param name="changed">
     /// Raised on a worker thread, possibly several times for one write. Callers marshal it and ask
@@ -19,6 +20,8 @@ public sealed class ConfigFileWatcher : IDisposable
     /// </param>
     public ConfigFileWatcher(string configPath, Action changed)
     {
+        this.changed = changed;
+
         var directory = Path.GetDirectoryName(configPath);
         var name = Path.GetFileName(configPath);
         if (string.IsNullOrEmpty(directory) || string.IsNullOrEmpty(name) || !Directory.Exists(directory))
@@ -36,6 +39,7 @@ public sealed class ConfigFileWatcher : IDisposable
             watcher.Changed += OnChanged;
             watcher.Created += OnChanged;
             watcher.Renamed += OnChanged;
+            watcher.Error += OnError;
             watcher.EnableRaisingEvents = true;
         }
         catch (Exception)
@@ -46,9 +50,47 @@ public sealed class ConfigFileWatcher : IDisposable
             watcher?.Dispose();
             watcher = null;
         }
-
-        void OnChanged(object? sender, FileSystemEventArgs e) => changed();
     }
 
-    public void Dispose() => watcher?.Dispose();
+    /// <summary>
+    /// False once the watcher has given up - the buffer overflowed, or the directory went away.
+    /// The window promises that a change in another window arrives by itself, so the one way that
+    /// promise can die quietly is worth being able to ask about.
+    /// </summary>
+    public bool IsWatching => watcher is { EnableRaisingEvents: true };
+
+    public void Dispose()
+    {
+        var current = watcher;
+        watcher = null;
+        if (current is null)
+            return;
+
+        // Unsubscribed before the dispose, so a handler already on a thread-pool thread cannot
+        // call back into a view model that is being torn down.
+        current.Changed -= OnChanged;
+        current.Created -= OnChanged;
+        current.Renamed -= OnChanged;
+        current.Error -= OnError;
+
+        try
+        {
+            current.EnableRaisingEvents = false;
+        }
+        catch (Exception)
+        {
+            // Already dead, which is what we wanted.
+        }
+
+        current.Dispose();
+    }
+
+    private void OnChanged(object? sender, FileSystemEventArgs e) => changed();
+
+    /// <summary>
+    /// The watcher disables itself on an internal error, so the change that raised it is the last
+    /// one this session sees. Reported as one more change: the caller reloads, notices nothing new,
+    /// and can ask <see cref="IsWatching"/> whether it is still being told about them.
+    /// </summary>
+    private void OnError(object? sender, ErrorEventArgs e) => changed();
 }

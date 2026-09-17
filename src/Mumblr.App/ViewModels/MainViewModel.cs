@@ -77,7 +77,20 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     /// <summary>Another window wrote the shared config while this one was busy. Applied on the way back to Idle.</summary>
     private bool configReloadPending;
 
-    private ConfigFileWatcher? configWatcher;
+    /// <summary>
+    /// The config file exists but could not be parsed, so this session is running on defaults. Said
+    /// out loud on start: the next setting change writes those defaults over the file, and a typo
+    /// that costs every keyterm and every prompt should not do so in silence.
+    /// </summary>
+    private readonly bool configBroken;
+
+    private IDisposable? configWatcher;
+
+    /// <summary>
+    /// How the watcher is built. A seam, not a setting: the headless tests would otherwise run a
+    /// real FileSystemWatcher over their workspace and post events into the dispatcher they pump.
+    /// </summary>
+    private readonly Func<string, Action, IDisposable> configWatcherFactory;
 
     /// <summary>The window between a command being asked for and the Commanding state.</summary>
     private bool CommandStarting
@@ -124,8 +137,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         IClaudeCommandRunner? claudeRunner = null,
         ISttEngineFactory? engineFactory = null,
         IUpdateService? updates = null,
-        IAttentionService? attention = null)
+        IAttentionService? attention = null,
+        Func<string, Action, IDisposable>? configWatcherFactory = null)
     {
+        this.configWatcherFactory = configWatcherFactory ?? ((path, changed) => new ConfigFileWatcher(path, changed));
         this.updates = updates ?? new UpdateService();
         this.attention = attention ?? new NullAttention();
         this.editor = editor;
@@ -135,7 +150,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         this.hotkeys = hotkeys;
 
         TargetDirectory = targetDirectory;
-        config = configStore.Load();
+
+        var loaded = configStore.LoadDetailed();
+        configBroken = loaded.Broken;
+        config = loaded.Config;
         postProcessor = new TextPostProcessor(config.Dictionary);
         this.claudeRunner = claudeRunner ?? new ClaudeCommandRunner(() => config.Claude);
         this.engineFactory = engineFactory ?? new ElevenLabsSttEngineFactory(http);
@@ -403,7 +421,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         HasApiKey = ApiKeyProvider.TryGet() is not null;
         UpdateCounters();
 
-        if (!HasApiKey)
+        if (configBroken)
+            Warn("config.json could not be read - running on defaults. Fix the file and press the reload button, "
+                 + "or the next setting you change writes the defaults over it.");
+        else if (!HasApiKey)
             Warn($"No API key. Set {ApiKeyProvider.PrimaryVariable} (or {ApiKeyProvider.FallbackVariable}) and restart.");
         else if (!IsWarning)
             // A device warning from RefreshDevices matters more than the file name, which the
@@ -412,7 +433,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         suppressConfigSave = false;
 
-        configWatcher = new ConfigFileWatcher(
+        configWatcher = configWatcherFactory(
             configStore.ConfigPath,
             () => Dispatcher.UIThread.Post(OnConfigFileChanged));
 
@@ -426,6 +447,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     /// </summary>
     public void OnConfigFileChanged()
     {
+        // An event already in flight when the window closed. Dispose clears this, and the work
+        // below reaches the hotkey service, which by then is gone.
+        if (configWatcher is null)
+            return;
+
         // Our own saves raise the same events, and one write raises several.
         if (!configStore.ChangedOnDisk())
             return;
@@ -433,29 +459,42 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         // Nobody asked for this reload, so it waits for a quiet moment. Applying it would restart
         // the hotkey service under a running hold and swap the microphone and the STT mode under a
         // take that is already recording with the old ones.
-        if (machine.State != SessionState.Idle || commandStarting || activeCommand is not null)
+        if (IsBusy)
         {
             configReloadPending = true;
             return;
         }
 
-        LoadConfigFromDisk();
-
-        if (!IsWarning)
-            Inform("Config changed on disk - reloaded.");
-    }
-
-    /// <summary>Applies a reload that arrived while the session was busy, now that it is not.</summary>
-    private void ApplyPendingConfigReload()
-    {
-        if (!configReloadPending || machine.State != SessionState.Idle || activeCommand is not null)
+        if (!LoadConfigFromDisk())
+        {
+            Warn("config.json changed on disk but could not be read - nothing was changed.");
             return;
-
-        LoadConfigFromDisk();
+        }
 
         if (!IsWarning)
             Inform("Config changed on disk - reloaded.");
     }
+
+    /// <summary>
+    /// Applies a reload that arrived while the session was busy, now that it is not. Silent: the
+    /// caller is in the middle of saying something of its own, and phrases both.
+    /// </summary>
+    private bool ApplyPendingConfigReload()
+    {
+        if (!configReloadPending || IsBusy)
+            return false;
+
+        return LoadConfigFromDisk();
+    }
+
+    /// <summary>
+    /// Anything that a reload must not land in the middle of. commandStarting is the one that is
+    /// easy to miss: between the hold key going down and the Commanding state there is a window -
+    /// up to five seconds while channel 1 is paused - where the machine still reads Recording or
+    /// Idle and activeCommand is still null, but a key is physically held down. Reloading there
+    /// reinstalls the keyboard hook underneath it and the key-up is never seen.
+    /// </summary>
+    private bool IsBusy => machine.State != SessionState.Idle || commandStarting || activeCommand is not null;
 
     private async Task<UpdateService.UpdateCheck> CheckForUpdatesAsync()
     {
@@ -506,6 +545,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 break;
             case UpdateService.UpdateCheck.NotInstalled:
                 Inform("This build updates by replacing the folder, not from inside the app.");
+                break;
+            case UpdateService.UpdateCheck.NoReleases:
+                // A preview build whose channel holds nothing. Silence here would read as
+                // "you have the newest", which is the one thing it certainly does not mean.
+                Warn("No release on this build's channel. Check the releases page.");
                 break;
             default:
                 // Saying "up to date" here would be a claim the app never actually checked.
@@ -623,6 +667,14 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         if (machine.State == SessionState.Commanding)
             return;
 
+        // Somebody already finished this stop while the backend was closing - a command that
+        // failed to start takes that route - and the session has moved on since. Without this the
+        // stop would be completed twice, and a second recording started in the meantime would be
+        // torn out from under itself: the machine would go to Idle while this method's capture.Stop
+        // and SafeStopEngineAsync, both from before the await, had only ever touched the old ones.
+        if (!stopRequested)
+            return;
+
         CompleteStop();
     }
 
@@ -648,12 +700,14 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         // in the middle of a take, so a Ctrl+Alt+C forty seconds after a refused session would
         // erase the only trace of it. This latch is set by the failure paths of this recording
         // and cleared when the next one starts, by nothing else.
+        // A reload that has been waiting for this moment goes in before the status line is
+        // written, so the stop and the reload are one sentence rather than two, one of them gone.
+        var reloaded = ApplyPendingConfigReload();
+
         if (recordingFailure is { Length: > 0 })
             Warn($"{recordingFailure} - stopped.");
-        else
-            Inform("Stopped.");
-
-        ApplyPendingConfigReload();
+        else if (!IsWarning)
+            Inform(reloaded ? "Stopped. The config changed on disk and was reloaded." : "Stopped.");
     }
 
     private async Task StartEngineAsync()
@@ -1119,8 +1173,14 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             }
         }
 
+        // The latch belongs to a stop that is no longer happening: the session came back to Idle
+        // some other way, and nothing between here and the next StartRecordingAsync would clear it.
+        if (machine.State != SessionState.Recording)
+            stopRequested = false;
+
         // Refused unless the session actually came to rest, so a resumed recording keeps it waiting.
-        ApplyPendingConfigReload();
+        if (ApplyPendingConfigReload() && !IsWarning)
+            Inform("Config changed on disk - reloaded.");
     }
 
     [RelayCommand]
@@ -1255,7 +1315,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     {
         try
         {
-            configStore.Save(config);
+            // Saved first so the file holds what the window holds - but never over a file that has
+            // moved on. Another window's change may be sitting in configReloadPending, and writing
+            // this window's older copy over it is the last-writer-wins the watcher exists to end.
+            if (!configStore.ChangedOnDisk())
+                configStore.Save(config);
+
             Process.Start(new ProcessStartInfo(configStore.ConfigPath) { UseShellExecute = true });
         }
         catch (Exception ex)
@@ -1285,7 +1350,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
-        LoadConfigFromDisk();
+        if (!LoadConfigFromDisk())
+        {
+            Warn("config.json could not be read - nothing was changed, the file is yours to fix.");
+            return;
+        }
 
         // RefreshDevices may have warned that the configured microphone is gone; that outranks
         // the news that the config was read.
@@ -1293,23 +1362,49 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             Inform("Config reloaded.");
     }
 
-    /// <summary>Reads the file and applies everything in it that can change without a restart.</summary>
-    private void LoadConfigFromDisk()
+    /// <summary>
+    /// Reads the file and applies everything in it that can change without a restart. False when
+    /// the file could not be parsed, and then nothing is applied: the alternative is adopting
+    /// defaults and writing them back over the file on the next microphone pick, which turns a
+    /// typo into the loss of every setting - and of the text the user was about to fix.
+    /// </summary>
+    private bool LoadConfigFromDisk()
     {
+        var loaded = configStore.LoadDetailed();
         configReloadPending = false;
 
-        config = configStore.Load();
+        if (loaded.Broken)
+            return false;
+
+        config = loaded.Config;
         postProcessor = new TextPostProcessor(config.Dictionary);
 
+        var hotkeysBefore = HotkeysEnabled;
+
+        // Saving stays suppressed until the last of these has run. RefreshDevices assigns
+        // SelectedDevice, which saves - so a reload used to echo the other window's file straight
+        // back to disk, waking that window in turn.
         suppressConfigSave = true;
         SelectedSttMode = config.SttMode;
         HotkeysEnabled = config.Hotkeys.Enabled;
         RefreshLanguages();
-        suppressConfigSave = false;
 
         ApplyHotkeys();
         RefreshDevices();
         RefreshPrebuiltCommands();
+        suppressConfigSave = false;
+
+        // The switch is a privacy control, and this path installs or removes a system-wide keyboard
+        // hook without anyone touching this window - the setter's own message is suppressed here,
+        // because as far as it knows this is a load. Say it out loud, over anything else this
+        // reload has to report: "off" reaching every window is the point, and "on" arriving by
+        // itself is the half that had better not be silent.
+        if (hotkeysBefore != HotkeysEnabled)
+            Warn(HotkeysEnabled
+                ? "Config changed: the global hotkeys are on. The chords work while another window has focus."
+                : "Config changed: the global hotkeys are off. Nothing outside this window can start a recording.");
+
+        return true;
     }
 
     partial void OnSelectedDeviceChanged(AudioDeviceInfo? value)

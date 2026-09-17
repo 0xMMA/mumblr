@@ -35,7 +35,7 @@ public sealed class UpdateService : IUpdateService
     public const string TokenVariable = "MUMBLR_GITHUB_TOKEN";
 
     private readonly string repositoryUrl;
-    private UpdateManager? manager;
+    private ChannelAwareUpdateManager? manager;
     private UpdateInfo? pending;
 
     public UpdateService(string repositoryUrl = ProjectUrl) =>
@@ -51,6 +51,7 @@ public sealed class UpdateService : IUpdateService
         UpToDate,
         Available,
         NotInstalled,
+        NoReleases,
         Failed,
     }
 
@@ -75,7 +76,7 @@ public sealed class UpdateService : IUpdateService
             // GitHub is asked for the 10 most recent releases and no more. Preview releases that
             // pile up push the newest stable one off that list, and a stable client then stops
             // seeing updates - so preview tags stay rare and throwaway ones get deleted.
-            manager ??= new UpdateManager(new GithubSource(repositoryUrl, AccessToken, prerelease: true));
+            manager ??= new ChannelAwareUpdateManager(new GithubSource(repositoryUrl, AccessToken, prerelease: true));
 
             // A plain `dotnet run` or an unzipped build without the Velopack layout cannot update.
             if (!manager.IsInstalled)
@@ -83,7 +84,13 @@ public sealed class UpdateService : IUpdateService
 
             var update = await manager.CheckForUpdatesAsync().ConfigureAwait(false);
             if (update is null)
-                return UpdateCheck.UpToDate;
+            {
+                // Null means "nothing newer" and "nothing at all" alike, and those must not sound
+                // the same: a preview install whose channel holds no release - the betas were
+                // deleted, or none was ever cut - would be told it is the latest build forever.
+                var any = await manager.ChannelHasReleasesAsync().ConfigureAwait(false);
+                return any ? UpdateCheck.UpToDate : UpdateCheck.NoReleases;
+            }
 
             await manager.DownloadUpdatesAsync(update).ConfigureAwait(false);
 
@@ -118,5 +125,20 @@ public sealed class UpdateService : IUpdateService
             return;
 
         manager.ApplyUpdatesAndRestart(pending);
+    }
+
+    /// <summary>
+    /// An UpdateManager that can also say whether this build's channel has any release at all.
+    /// The source, the channel and the log are protected on the base class, which is the only
+    /// reason this subclass exists - a Velopack that moves them breaks the build rather than
+    /// quietly returning the wrong answer.
+    /// </summary>
+    private sealed class ChannelAwareUpdateManager(IUpdateSource source) : UpdateManager(source)
+    {
+        public async Task<bool> ChannelHasReleasesAsync()
+        {
+            var feed = await Source.GetReleaseFeed(Log, AppId, Channel).ConfigureAwait(false);
+            return feed.Assets is { Length: > 0 };
+        }
     }
 }

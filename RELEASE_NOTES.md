@@ -2,13 +2,17 @@
 
 Think out loud, get a prompt: speech to markdown in the folder you start it from, with edits by voice through your local Claude Code.
 
-**Portable:** download `mumblr-<version>-win-Portable.zip`, unzip anywhere, put the folder on your `PATH`,
+**Portable:** download the `Portable.zip` below, unzip anywhere, put the folder on your `PATH`,
 then run `mumblr .` in the repo you are working in.
 
-**Installer:** `mumblr-<version>-win-Setup.exe` installs per user and puts `mumblr` on your `PATH`,
-so `mumblr .` works from any folder. Open a new terminal afterwards - a `PATH` change does not
-reach one that is already running. In-app updates need a release feed the app can read; see the
+**Installer:** the `Setup.exe` below installs per user and puts `mumblr` on your `PATH`, so
+`mumblr .` works from any folder. Open a new terminal afterwards - a `PATH` change does not reach
+one that is already running. In-app updates need a release feed the app can read; see the
 repository if the version button reports that it could not reach one.
+
+The file names carry the version and the channel: `mumblr-0.2.2-win-Setup.exe` is a stable build,
+`mumblr-0.2.2-beta.1-win-beta-Setup.exe` a preview. A preview only ever updates to previews and a
+stable build only to stable ones, so the download you install is the one you stay on.
 
 ### Fixed in 0.2.2
 
