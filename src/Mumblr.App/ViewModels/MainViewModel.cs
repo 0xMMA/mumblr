@@ -62,6 +62,14 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     /// <summary>Guards the window inside PrepareCommandAsync where pausing channel 1 is awaited.</summary>
     private bool commandStarting;
 
+    /// <summary>
+    /// Carries a stop across a command that started inside its pause window. Stopping a realtime
+    /// backend waits for the last segment or five seconds, and a command pressed in there reaches
+    /// Commanding first - so TryStopRecording fails and the command would resume the recording the
+    /// user just ended. Set before that await, consumed by whoever gets to finish the stop.
+    /// </summary>
+    private bool stopRequested;
+
     /// <summary>True while the global chords are actually registered, so tooltips can name them.</summary>
     private bool hotkeysActive;
 
@@ -518,6 +526,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
 
         recordingFailure = null;
+        stopRequested = false;
         document.BeginTake();
 
         try
@@ -548,12 +557,34 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         if (!machine.CanStopRecording)
             return;
 
+        // Claimed before the await, exactly like commandStarting in PrepareCommandAsync and for
+        // the mirror image of its reason: a command key pressed while this stop waits for the
+        // backend takes the machine to Commanding, and the stop then has nowhere to land.
+        stopRequested = true;
+
         capture.Stop();
         Level = 0;
         PreviewText = string.Empty;
 
         await SafeStopEngineAsync();
         DrainSegments();
+
+        // A command got in. It was pressed deliberately, so it runs - and FinishCommandAsync ends
+        // the take afterwards instead of resuming it. Both presses are honoured that way; saying
+        // "Stopped." here, over a command that is only starting, would honour neither.
+        if (machine.State == SessionState.Commanding)
+            return;
+
+        CompleteStop();
+    }
+
+    /// <summary>
+    /// Ends the take: out of Recording, buffer to disk, and a word about how it went. Reached
+    /// straight from Stop, or from FinishCommandAsync when a command overtook one.
+    /// </summary>
+    private void CompleteStop()
+    {
+        stopRequested = false;
 
         machine.TryStopRecording();
         RefreshState();
@@ -1008,6 +1039,14 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         if (machine.State == SessionState.Recording)
         {
+            // Stop was pressed while channel 1 was being paused for this command, so it never
+            // reached the machine. Finish it here rather than resuming a recording the user ended.
+            if (stopRequested)
+            {
+                CompleteStop();
+                return;
+            }
+
             // Channel 1 resumes where the text now ends.
             try
             {

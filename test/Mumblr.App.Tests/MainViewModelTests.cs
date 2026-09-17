@@ -295,6 +295,68 @@ public sealed class MainViewModelTests : IDisposable
     }
 
     [AvaloniaFact]
+    public async Task A_command_started_inside_the_stop_window_ends_the_take_instead_of_resuming_it()
+    {
+        // Stopping a realtime backend waits for the last segment, or five seconds. A hold pressed
+        // in there reaches Commanding before the stop reaches the machine, so TryStopRecording
+        // failed silently and the command handed the session back to Recording: Stop was swallowed
+        // and the taskbar started flashing again over a recording the user had ended.
+        var viewModel = CreateViewModel();
+        await viewModel.ToggleRecordingCommand.ExecuteAsync(null);
+
+        var pause = new TaskCompletionSource();
+        engines.Last!.StopGate = pause;
+
+        var stopping = viewModel.ToggleRecordingCommand.ExecuteAsync(null);
+        hotkeys.PressCommandKey();
+        await PumpAsync();
+        viewModel.IsCommanding.ShouldBeTrue();
+
+        pause.SetResult();
+        await stopping;
+        capture.Emit(new byte[640]);
+        hotkeys.ReleaseCommandKey();
+        await PumpAsync();
+
+        // Both presses are honoured: the command ran, and the recording is over.
+        claude.Calls.Count.ShouldBe(1);
+        viewModel.IsCommanding.ShouldBeFalse();
+        viewModel.IsRecording.ShouldBeFalse();
+        engines.Created.Count.ShouldBe(1);
+        attention.Wanted.ShouldBeFalse();
+        viewModel.WindowTitle.ShouldBe("mumblr");
+    }
+
+    [AvaloniaFact]
+    public async Task A_prebuilt_command_started_inside_the_stop_window_ends_the_take_too()
+    {
+        // The everyday shape of the same bug: stop, then reach for Grammar before the backend has
+        // let go.
+        var viewModel = CreateViewModel();
+        editor.Text = "Erster Satz. Zweiter Satz.";
+        claude.FileContentAfterRun = "Erster Satz.";
+        await viewModel.ToggleRecordingCommand.ExecuteAsync(null);
+
+        var pause = new TaskCompletionSource();
+        engines.Last!.StopGate = pause;
+
+        var stopping = viewModel.ToggleRecordingCommand.ExecuteAsync(null);
+        var grammar = viewModel.RunPrebuiltCommand.ExecuteAsync(viewModel.PrebuiltCommands[0]);
+        await PumpAsync();
+
+        pause.SetResult();
+        await stopping;
+        await grammar;
+        await PumpAsync();
+
+        claude.Calls.Count.ShouldBe(1);
+        editor.Text.ShouldBe("Erster Satz.");
+        viewModel.IsRecording.ShouldBeFalse();
+        engines.Created.Count.ShouldBe(1);
+        attention.Wanted.ShouldBeFalse();
+    }
+
+    [AvaloniaFact]
     public async Task The_command_log_never_touches_the_content_buffer()
     {
         var viewModel = CreateViewModel();
