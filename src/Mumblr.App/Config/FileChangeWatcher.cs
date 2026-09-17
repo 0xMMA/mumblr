@@ -4,40 +4,42 @@ using System.IO;
 namespace Mumblr.App.Config;
 
 /// <summary>
-/// Reports that something touched the shared config file. `mumblr .` is meant to be run once per
-/// repo folder, so several windows write one %APPDATA%\mumblr\config.json: without this, the
-/// microphone the second window picked reached the first only on a restart, and the last writer
-/// silently won.
+/// Reports that something touched the files the window reads from the user's own directory: the
+/// shared config.json, and the prompt files. `mumblr .` is meant to be run once per repo folder,
+/// so several windows share both - without this, a microphone picked in the second window reached
+/// the first only on a restart, and the last writer silently won.
 /// </summary>
-public sealed class ConfigFileWatcher : IDisposable
+public sealed class FileChangeWatcher : IDisposable
 {
     private readonly Action changed;
     private FileSystemWatcher? watcher;
 
+    /// <param name="directory">Watched as it is. A directory that does not exist is watched by nobody.</param>
+    /// <param name="filter">One file name, or a pattern such as <c>*.md</c>.</param>
     /// <param name="changed">
-    /// Raised on a worker thread, possibly several times for one write. Callers marshal it and ask
-    /// the store whether the contents actually differ - the app's own saves fire these events too.
+    /// Raised on a worker thread, possibly several times for one write. Callers marshal it and
+    /// check whether anything actually differs - the app's own writes fire these events too.
     /// </param>
-    public ConfigFileWatcher(string configPath, Action changed)
+    public FileChangeWatcher(string directory, string filter, Action changed)
     {
         this.changed = changed;
 
-        var directory = Path.GetDirectoryName(configPath);
-        var name = Path.GetFileName(configPath);
-        if (string.IsNullOrEmpty(directory) || string.IsNullOrEmpty(name) || !Directory.Exists(directory))
+        if (string.IsNullOrEmpty(directory) || string.IsNullOrEmpty(filter) || !Directory.Exists(directory))
             return;
 
         try
         {
-            watcher = new FileSystemWatcher(directory, name)
+            watcher = new FileSystemWatcher(directory, filter)
             {
                 // The config is written to a sibling file and moved into place, so the event that
-                // matters is the rename onto the name - a plain write to it may never happen.
+                // matters is the rename onto the name - a plain write to it may never happen. An
+                // editor saving a prompt does the same thing.
                 NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.Size,
             };
 
             watcher.Changed += OnChanged;
             watcher.Created += OnChanged;
+            watcher.Deleted += OnChanged;
             watcher.Renamed += OnChanged;
             watcher.Error += OnError;
             watcher.EnableRaisingEvents = true;
@@ -70,6 +72,7 @@ public sealed class ConfigFileWatcher : IDisposable
         // call back into a view model that is being torn down.
         current.Changed -= OnChanged;
         current.Created -= OnChanged;
+        current.Deleted -= OnChanged;
         current.Renamed -= OnChanged;
         current.Error -= OnError;
 

@@ -14,6 +14,22 @@ The file names carry the version and the channel: `mumblr-0.2.2-win-Setup.exe` i
 `mumblr-0.2.2-beta.1-win-beta-Setup.exe` a preview. A preview only ever updates to previews and a
 stable build only to stable ones, so the download you install is the one you stay on.
 
+### Changed in 0.3.0
+
+- **The command buttons are your files now.** Every markdown file in `%APPDATA%\mumblr\prompts`
+  is a button above the command log. Add one, edit one, delete one - the buttons follow without a
+  restart, and the file is plain text you own rather than a string inside `config.json`.
+  Frontmatter names the button and places it (`label`, `order`); everything below is what goes to
+  Claude. Both keys are optional.
+- **Your existing buttons move across on the first run.** Whatever `prebuiltCommands` held becomes
+  files, text unchanged, in the order you had them - a prompt you edited arrives exactly as you
+  left it. The key then leaves `config.json`, so there is one place to edit a prompt instead of
+  two. Deleting a file keeps it deleted; deleting the whole directory is how you ask for the
+  shipped two back.
+- The directory is the only source, and it is deliberately not configurable: a prompt is handed to
+  `claude -p` with permission to read and edit your dictation, so a prompt folder inside a
+  repository would let a repo you cloned run its own instructions over what you say.
+
 ### Fixed in 0.2.2
 
 - **Stop is no longer swallowed by the command you press right after it.** Stopping a realtime

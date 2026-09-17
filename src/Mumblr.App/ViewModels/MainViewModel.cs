@@ -21,6 +21,7 @@ using Mumblr.Core.Commands;
 using Mumblr.Core.Config;
 using Mumblr.Core.Documents;
 using Mumblr.Core.Hotkeys;
+using Mumblr.Core.Prompts;
 using Mumblr.Core.State;
 using Mumblr.Core.Stt;
 using Mumblr.Core.Text;
@@ -35,6 +36,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 {
     private readonly IEditorHost editor;
     private readonly ConfigStore configStore;
+
+    /// <summary>Where the command buttons come from: markdown files in the user's own directory.</summary>
+    private readonly PromptLibrary prompts;
     private readonly SessionStateMachine machine = new();
     private readonly SnapshotStore snapshots = new();
     private readonly HttpClient http = new() { Timeout = TimeSpan.FromMinutes(5) };
@@ -85,12 +89,14 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private readonly bool configBroken;
 
     private IDisposable? configWatcher;
+    private IDisposable? promptWatcher;
 
     /// <summary>
-    /// How the watcher is built. A seam, not a setting: the headless tests would otherwise run a
-    /// real FileSystemWatcher over their workspace and post events into the dispatcher they pump.
+    /// How a watcher is built, given a directory and a filter. A seam, not a setting: the headless
+    /// tests would otherwise run real FileSystemWatchers over their workspace and post events into
+    /// the dispatcher they pump.
     /// </summary>
-    private readonly Func<string, Action, IDisposable> configWatcherFactory;
+    private readonly Func<string, string, Action, IDisposable> fileWatcherFactory;
 
     /// <summary>The window between a command being asked for and the Commanding state.</summary>
     private bool CommandStarting
@@ -138,9 +144,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         ISttEngineFactory? engineFactory = null,
         IUpdateService? updates = null,
         IAttentionService? attention = null,
-        Func<string, Action, IDisposable>? configWatcherFactory = null)
+        PromptLibrary? prompts = null,
+        Func<string, string, Action, IDisposable>? fileWatcherFactory = null)
     {
-        this.configWatcherFactory = configWatcherFactory ?? ((path, changed) => new ConfigFileWatcher(path, changed));
+        this.prompts = prompts ?? PromptLibrary.Default();
+        this.fileWatcherFactory = fileWatcherFactory
+            ?? ((directory, filter, changed) => new FileChangeWatcher(directory, filter, changed));
         this.updates = updates ?? new UpdateService();
         this.attention = attention ?? new NullAttention();
         this.editor = editor;
@@ -413,6 +422,18 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         document = DictationDocument.Create(TargetDirectory);
         DocumentPath = document.MarkdownPath;
 
+        // The first run after the upgrade writes what config.json carried into files, and a fresh
+        // install gets the shipped two. Once, and only when the directory is not there at all.
+        try
+        {
+            if (PromptSeeding.SeedIfMissing(prompts, config))
+                TrySaveConfig();
+        }
+        catch (Exception ex)
+        {
+            Warn($"Could not write the prompt files: {ex.Message}");
+        }
+
         RefreshDevices();
         RefreshPrebuiltCommands();
         ApplyHotkeys();
@@ -433,9 +454,15 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         suppressConfigSave = false;
 
-        configWatcher = configWatcherFactory(
-            configStore.ConfigPath,
+        configWatcher = fileWatcherFactory(
+            Path.GetDirectoryName(configStore.ConfigPath) ?? string.Empty,
+            Path.GetFileName(configStore.ConfigPath),
             () => Dispatcher.UIThread.Post(OnConfigFileChanged));
+
+        promptWatcher = fileWatcherFactory(
+            prompts.Directory,
+            "*.md",
+            () => Dispatcher.UIThread.Post(OnPromptsChanged));
 
         _ = CheckForUpdatesAsync();
     }
@@ -1329,14 +1356,46 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>
+    /// Rebuilds the command buttons from the prompt files. Does nothing at all when they have not
+    /// changed: one save raises several events, and replacing the collection would flicker the
+    /// buttons and overwrite the status line each time.
+    /// </summary>
     private void RefreshPrebuiltCommands()
     {
-        PrebuiltCommands.Clear();
-        foreach (var prebuilt in config.PrebuiltCommands ?? [])
-            if (!string.IsNullOrWhiteSpace(prebuilt.Label) && !string.IsNullOrWhiteSpace(prebuilt.Text))
-                PrebuiltCommands.Add(prebuilt);
+        var loaded = prompts.Load();
 
-        OnPropertyChanged(nameof(HasPrebuiltCommands));
+        var unchanged = loaded.Prompts.Count == PrebuiltCommands.Count
+            && loaded.Prompts.Zip(PrebuiltCommands).All(pair =>
+                pair.First.Label == pair.Second.Label && pair.First.Text == pair.Second.Text);
+
+        if (!unchanged)
+        {
+            PrebuiltCommands.Clear();
+            foreach (var prompt in loaded.Prompts)
+                PrebuiltCommands.Add(new PrebuiltCommand { Label = prompt.Label, Text = prompt.Text });
+
+            OnPropertyChanged(nameof(HasPrebuiltCommands));
+        }
+
+        // A file that holds no prompt costs its button and nothing else, but it costs it silently -
+        // and a button that is simply not there is indistinguishable from one never written.
+        if (loaded.Skipped.Count > 0)
+            Warn(loaded.Skipped.Count == 1
+                ? $"{Path.GetFileName(loaded.Skipped[0])} holds no prompt and has no button."
+                : $"{loaded.Skipped.Count} prompt files hold no prompt and have no buttons.");
+    }
+
+    /// <summary>
+    /// A prompt file was written, renamed or deleted - by an editor, or by another window. Public
+    /// for the same reason as OnConfigFileChanged: the watcher only says that something happened.
+    /// </summary>
+    public void OnPromptsChanged()
+    {
+        if (promptWatcher is null)
+            return;
+
+        RefreshPrebuiltCommands();
     }
 
     [RelayCommand]
@@ -1597,6 +1656,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     {
         configWatcher?.Dispose();
         configWatcher = null;
+
+        promptWatcher?.Dispose();
+        promptWatcher = null;
 
         hotkeys.Dispose();
         capture.Dispose();

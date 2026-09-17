@@ -6,6 +6,7 @@ using Mumblr.App.ViewModels;
 using Mumblr.Core.Commands;
 using Mumblr.Core.Config;
 using Mumblr.Core.Hotkeys;
+using Mumblr.Core.Prompts;
 using Mumblr.Core.State;
 using Mumblr.Core.Stt;
 
@@ -67,14 +68,17 @@ public sealed class MainViewModelTests : IDisposable
         other.Save(theirs);
     }
 
+    private string PromptDirectory => Path.Combine(workspace, "prompts");
+
     private MainViewModel CreateViewModel()
     {
         // No real FileSystemWatcher: it would post events into the dispatcher these tests pump,
-        // from a thread-pool thread, on timing the test does not control. The decision the watcher
-        // feeds is driven directly through OnConfigFileChanged instead.
+        // from a thread-pool thread, on timing the test does not control. What the watchers feed is
+        // driven directly through OnConfigFileChanged and OnPromptsChanged instead.
         viewModel = new MainViewModel(
             workspace, editor, configStore, devices, capture, hotkeys, claude, engines, updates, attention,
-            configWatcherFactory: (_, _) => new NoWatcher());
+            prompts: new PromptLibrary(PromptDirectory),
+            fileWatcherFactory: (_, _, _) => new NoWatcher());
         viewModel.Initialize();
         return viewModel;
     }
@@ -1255,6 +1259,76 @@ public sealed class MainViewModelTests : IDisposable
 
         claude.Calls.Count.ShouldBe(1);
         editor.Text.ShouldBe("Erster Satz.");
+    }
+
+    // ---------------------------------------------------------------- prompts as files
+
+    [AvaloniaFact]
+    public void The_command_buttons_come_from_the_prompt_files()
+    {
+        var viewModel = CreateViewModel();
+
+        viewModel.PrebuiltCommands.Select(c => c.Label).ShouldBe(["Grammar", "Prompt"]);
+        Directory.GetFiles(PromptDirectory, "*.md").Length.ShouldBe(2);
+    }
+
+    [AvaloniaFact]
+    public void The_prompts_leave_config_json_once_they_are_files()
+    {
+        // Otherwise they sit in the file the Config button opens, where editing them does nothing.
+        CreateViewModel();
+
+        new ConfigStore(configStore.ConfigPath).Load().PrebuiltCommands.ShouldBeEmpty();
+    }
+
+    [AvaloniaFact]
+    public void A_prompt_added_on_disk_becomes_a_button()
+    {
+        var viewModel = CreateViewModel();
+        new PromptLibrary(PromptDirectory).Write("shorter", "Shorter", 5, "Halve the length.");
+
+        viewModel.OnPromptsChanged();
+
+        viewModel.PrebuiltCommands.Select(c => c.Label).ShouldBe(["Shorter", "Grammar", "Prompt"]);
+    }
+
+    [AvaloniaFact]
+    public async Task A_button_built_from_a_file_sends_what_the_file_says()
+    {
+        var viewModel = CreateViewModel();
+        new PromptLibrary(PromptDirectory).Write("shorter", "Shorter", 5, "Halve the length.");
+        viewModel.OnPromptsChanged();
+
+        await viewModel.RunPrebuiltCommand.ExecuteAsync(viewModel.PrebuiltCommands[0]);
+        await PumpAsync();
+
+        claude.Calls.ShouldHaveSingleItem().Command.ShouldBe("Halve the length.");
+        viewModel.CommandLog[0].Source.ShouldBe("Shorter");
+    }
+
+    [AvaloniaFact]
+    public void A_prompt_file_that_holds_no_prompt_is_named()
+    {
+        // A button that is simply not there looks exactly like one that was never written.
+        var viewModel = CreateViewModel();
+        File.WriteAllText(Path.Combine(PromptDirectory, "empty.md"), "---\nlabel: Empty\n---\n");
+
+        viewModel.OnPromptsChanged();
+
+        viewModel.IsWarning.ShouldBeTrue();
+        viewModel.StatusMessage.ShouldContain("empty.md");
+    }
+
+    [AvaloniaFact]
+    public void The_several_events_one_write_raises_do_not_churn_the_buttons()
+    {
+        var viewModel = CreateViewModel();
+        var before = viewModel.PrebuiltCommands[0];
+
+        viewModel.OnPromptsChanged();
+        viewModel.OnPromptsChanged();
+
+        viewModel.PrebuiltCommands[0].ShouldBeSameAs(before);
     }
 
     // ---------------------------------------------------------------- the shared config file

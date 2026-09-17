@@ -106,8 +106,12 @@ lines verbatim.
 - **`strings` reads ASCII by default and .NET literals are UTF-16.** Plain `strings` reports a
   shipped string as missing when it is there. Use `strings -el`.
 - **A shipped default lives on in every `config.json`.** The file is written in full on first
-  run, so a changed `DefaultHeaderPrompt` or prebuilt command reaches no existing install unless
-  `ConfigMigration` knows the fingerprint of the text being replaced. Add it in the same commit,
-  compute it with `ConfigMigration.Fingerprint`, and pin it in `ConfigMigrationTests` against the
-  literal old text in `ShippedDefaults` — a wrong fingerprint fails nothing and migrates nobody.
+  run, so a changed `DefaultHeaderPrompt` reaches no existing install unless `ConfigMigration`
+  knows the fingerprint of the text being replaced. Add it in the same commit, compute it with
+  `ConfigMigration.Fingerprint`, and pin it in `ConfigMigrationTests` against the literal old text
+  in `ShippedDefaults` — a wrong fingerprint fails nothing and migrates nobody.
+- **A shipped prompt lives on even harder: it is a file the user owns.** `PromptSeeding` writes
+  `%APPDATA%\mumblr\prompts\*.md` once, when the directory does not exist, and never touches
+  them again. Changing `MumblrConfig.PrebuiltCommands` therefore reaches new installs only. The
+  fingerprint migration still matters for the one run that moves an old `config.json` across.
 - **Check CLI flags against `claude --help`,** never against memory.

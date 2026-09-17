@@ -73,10 +73,10 @@ puts the dictation back exactly as it was transcribed, whatever the commands did
 itself revertible. The raw file is read-only on disk between appends, so a command cannot edit
 it even though Claude has edit rights in the folder.
 
-Commands you say word for word every day belong on a button instead. `prebuiltCommands` in the
-config becomes a row of buttons above the log; clicking one skips the microphone and the STT round
-trip entirely and takes the identical path from there - snapshot, `claude -p`, reload, revert. Two
-ship:
+Commands you say word for word every day belong on a button instead. Every markdown file in
+`%APPDATA%\mumblr\prompts` becomes a button above the log; clicking one skips the microphone and
+the STT round trip entirely and takes the identical path from there - snapshot, `claude -p`,
+reload, revert. Two ship:
 
 - **Grammar** fixes grammar, sentence structure and word order and changes nothing else: not the
   content, and not its language. German dictation with English terms comes back as German
@@ -137,7 +137,6 @@ command waits for it to end rather than swapping the microphone underneath it.
 | `hotkeys` | `enabled` (the status bar toggle), `toggleRecording`, `copy`, `revertCommand`, `commandHoldKey` |
 | `claude` | `model`, `effort`, `headerPrompt`, allowed/disallowed tools, timeout |
 | `stt` | Model ids, `noVerbatim`, `languageCode` (what the LANG picker chose, unset for auto), `languages` (what it offers), base URL, VAD silence threshold, `keytermsEncoding` |
-| `prebuiltCommands` | `label` and `text` per button. Both English: the label is UI, the text an instruction to Claude. The prompt sent with every command says the dictation keeps its own language. |
 
 Two settings are deliberately not in the file. `ELEVENLABS_API_KEY` (or `XI_API_KEY`) carries the
 transcription key, and `MUMBLR_GITHUB_TOKEN` lets the updater read the release feed of a private
@@ -149,6 +148,30 @@ also the risk: a chord that collides with a game or another tool starts a record
 want. The **hotkeys** toggle in the status bar turns all of them off with one click, unregisters
 the chords and removes the keyboard hook; the buttons keep working. The state is saved, so it
 stays off until you turn it on again.
+
+### Your prompts
+
+The command buttons are files. `%APPDATA%\mumblr\prompts\*.md`, one prompt each, written on the
+first run and yours from then on - add one, edit one, delete one, and the buttons follow without a
+restart. Frontmatter names the button and places it; everything below it is what goes to Claude:
+
+```markdown
+---
+label: Shorter
+order: 30
+---
+
+Halve the length without losing a single point. Keep the author's words and language.
+```
+
+Both keys are optional: a file with no frontmatter is a prompt named after itself, and one with no
+`order` sorts after every file that has one. A file that holds no prompt gets no button, and the
+window says which one.
+
+The directory is the only place prompts come from, and it is not configurable. A prompt goes to
+`claude -p` with permission to read and edit the dictation file, so a prompt directory inside a
+repository would let a repo you cloned run its own instructions over what you dictate. Deleting a
+file keeps it deleted; deleting the whole directory is how you ask for the shipped two back.
 
 ### Preview builds
 
@@ -167,7 +190,7 @@ either way.
 - No wake word and no hands-free control - you press something to record.
 - No cursor injection into other applications. The output is a file and the clipboard.
 - No diarization and no long recordings. It is built for a few minutes of thinking out loud.
-- No prompt library or templates beyond the prebuilt command buttons.
+- No prompt library with sharing, versions or variables. A prompt is a markdown file you own.
 - No cloud LLM inside the app. The only model that touches your text is the Claude Code you
   installed yourself.
 - No editing while a recording runs - one writer at a time, by design. See the state table above.
