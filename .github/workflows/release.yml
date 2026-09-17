@@ -91,6 +91,43 @@ jobs:
           --outputDir releases
           --releaseNotes RELEASE_NOTES.md
 
+      # vpk creates the release as a draft, uploads into it, and then PATCHes it to published.
+      # GitHub refuses that PATCH to a workflow token - "Resource not accessible by integration",
+      # even with contents: write, and even though the same token is allowed to create the release
+      # in the first place. So the release is created here, already published, and vpk merges into
+      # it and skips its own publish step. The cost is that a failure after this point leaves a
+      # public release with only some of its assets; the alternative was a release nobody can see.
+      - name: Create the release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $tag = '${{ steps.version.outputs.tag }}'
+
+          $existing = gh release view $tag --json isDraft 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            if (($existing | ConvertFrom-Json).isDraft) {
+              throw "A draft release for $tag already exists. Delete it - vpk cannot publish it and neither can this job."
+            }
+
+            Write-Host "$tag already exists, merging into it"
+            exit 0
+          }
+
+          $arguments = @(
+            'release', 'create', $tag,
+            '--title', 'mumblr ${{ steps.version.outputs.version }}',
+            '--notes-file', 'RELEASE_NOTES.md',
+            '--target', '${{ github.sha }}'
+          )
+
+          if ('${{ steps.version.outputs.pre }}' -eq 'true') {
+            $arguments += '--prerelease'
+          }
+
+          gh @arguments
+          if ($LASTEXITCODE -ne 0) { throw "Could not create the release for $tag" }
+
       - name: Upload the release
         shell: pwsh
         env:
