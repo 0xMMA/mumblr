@@ -162,72 +162,80 @@ public class PromptSeedingTests : IDisposable
     }
 
     [Fact]
-    public void Losing_the_race_to_another_window_is_not_a_failure()
+    public void A_folder_that_appears_empty_under_the_seeding_does_not_clear_the_config()
     {
-        // Two windows starting at once. Directory.Move refuses an existing destination rather than
-        // merging into it - but the prompts are on disk, which is what this was for. Reporting a
-        // failure would warn about nothing and write the dead key back on the next save.
-        var theirs = new MumblrConfig();
-        PromptSeeding.SeedIfMissing(Library, theirs);
-
+        // The whole reason the check above is about contents and not existence. The racer is
+        // already spinning before the seeding starts and waits for the staging directory rather
+        // than for a clock, and the write loop is long enough to be caught in.
         var mine = new MumblrConfig
         {
-            PrebuiltCommands = [new PrebuiltCommand { Label = "Shorter", Text = "Halve it." }],
+            PrebuiltCommands = [.. Enumerable.Range(0, 400)
+                .Select(i => new PrebuiltCommand { Label = $"Prompt {i}", Text = $"Do thing {i}." })],
         };
 
-        Directory.Delete(directory, recursive: true);
-        Directory.CreateDirectory(directory + ".other");
+        var parent = Path.GetDirectoryName(directory)!;
+        var pattern = Path.GetFileName(directory) + ".*.tmp";
 
-        // Stand in for the other window finishing between the check and the move.
-        Should.NotThrow(() =>
+        using var spinning = new ManualResetEventSlim();
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+
+        var racer = Task.Run(() =>
         {
+            spinning.Set();
+            while (!Directory.EnumerateDirectories(parent, pattern).Any())
+            {
+                stop.Token.ThrowIfCancellationRequested();
+                Thread.Sleep(1);
+            }
+
             Directory.CreateDirectory(directory);
-            PromptSeeding.SeedIfMissing(Library, mine);
-        });
+        }, stop.Token);
 
-        Directory.Delete(directory + ".other", recursive: true);
+        spinning.Wait(TimeSpan.FromSeconds(10)).ShouldBeTrue();
+
+        var thrown = Should.Throw<IOException>(() => PromptSeeding.SeedIfMissing(Library, mine));
+        racer.Wait(TimeSpan.FromSeconds(10));
+
+        thrown.ShouldNotBeNull();
+        mine.PrebuiltCommands.ShouldNotBeNull();
+        mine.PrebuiltCommands.Count.ShouldBe(400);
     }
 
     [Fact]
-    public void A_very_long_label_does_not_become_a_very_long_path()
+    public void A_folder_that_holds_prompts_means_another_window_got_there_first()
     {
-        var config = new MumblrConfig
-        {
-            PrebuiltCommands = [new PrebuiltCommand { Label = new string('x', 300), Text = "a" }],
-        };
+        // Two windows starting at once. Directory.Move refuses an existing destination rather than
+        // merging into it, but the prompts are on disk, which is what this was for - so the
+        // entries still have to leave the config rather than be written back on the next save.
+        Directory.CreateDirectory(directory);
+        Library.Write("theirs", "Theirs", 10, "Their prompt.");
 
-        PromptSeeding.SeedIfMissing(Library, config);
-
-        var prompt = Library.Load().Prompts.ShouldHaveSingleItem();
-        Path.GetFileName(prompt.Path).Length.ShouldBeLessThan(80);
-        prompt.Label.Length.ShouldBe(300);
+        PromptSeeding.AnotherWriterWon(directory, expected: 1).ShouldBeTrue();
     }
 
     [Fact]
-    public void A_seeding_that_cannot_finish_leaves_nothing_behind_and_tries_again()
+    public void An_empty_folder_does_not_mean_another_window_got_there_first()
     {
-        // A file where the directory should go: everything is written, and the move into place
-        // fails. A half-filled directory would end the migration forever - Directory.Exists is
-        // what stops it running again - with the entries still in a config nothing reads.
-        File.WriteAllText(directory, "in the way");
+        // Anything can create one in the window between the check and the move: a sync client
+        // putting back a directory somebody deleted, a backup, the user. Reading that as "already
+        // seeded" clears the config over nothing, and the folder then stops it ever trying again.
+        Directory.CreateDirectory(directory);
 
-        var config = new MumblrConfig
-        {
-            PrebuiltCommands = [new PrebuiltCommand { Label = "Shorter", Text = "Halve it." }],
-        };
+        PromptSeeding.AnotherWriterWon(directory, expected: 1).ShouldBeFalse();
+    }
 
-        Should.Throw<IOException>(() => PromptSeeding.SeedIfMissing(Library, config));
+    [Fact]
+    public void With_nothing_to_write_an_empty_folder_is_enough()
+    {
+        Directory.CreateDirectory(directory);
 
-        // Nothing half-done: no prompt directory, no staging left over, and the entries still in
-        // the config, which is the only thing that can seed them next time.
-        Directory.Exists(directory).ShouldBeFalse();
-        Directory.GetDirectories(Path.GetTempPath(), Path.GetFileName(directory) + ".*").ShouldBeEmpty();
-        config.PrebuiltCommands.ShouldNotBeNull();
+        PromptSeeding.AnotherWriterWon(directory, expected: 0).ShouldBeTrue();
+    }
 
-        File.Delete(directory);
-
-        PromptSeeding.SeedIfMissing(Library, config).ShouldBeTrue();
-        Library.Load().Prompts.ShouldHaveSingleItem().Label.ShouldBe("Shorter");
+    [Fact]
+    public void A_folder_that_is_not_there_is_nobody_getting_there_first()
+    {
+        PromptSeeding.AnotherWriterWon(directory, expected: 1).ShouldBeFalse();
     }
 
     public void Dispose()

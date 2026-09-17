@@ -84,7 +84,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     /// <summary>Why the prompt files could not be written on start, if they could not.</summary>
     private string? promptSeedingFailure;
 
-    /// <summary>The window is gone. Nothing may arm a watcher or touch a service after this.</summary>
+    /// <summary>The window is gone, so nothing may arm a watcher that nobody would ever dispose.</summary>
     private bool disposed;
 
     /// <summary>
@@ -93,6 +93,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     /// the end of every take, and a warning there erases whatever the window was actually saying.
     /// </summary>
     private string[] skippedPrompts = [];
+
+    /// <summary>The last warning written about those files, so only that line is taken back.</summary>
+    private string? lastSkipWarning;
 
     /// <summary>
     /// The config file exists but could not be parsed, so this session is running on defaults. Said
@@ -460,8 +463,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         else if (!HasApiKey)
             Warn($"No API key. Set {ApiKeyProvider.PrimaryVariable} (or {ApiKeyProvider.FallbackVariable}) and restart.");
         else if (promptSeedingFailure is { Length: > 0 })
-            // Said after RefreshDevices rather than where it happened: a missing microphone is
-            // loud, and it used to warn over the one notice that the migration did not run.
+            // Said here rather than where it happened: RefreshDevices is loud about a microphone
+            // that is gone, and used to warn over the one notice that the migration did not run.
+            // A missing key outranks it, and costs nothing - the next start reports it again.
             Warn(promptSeedingFailure);
         else if (!IsWarning)
             // A device warning from RefreshDevices matters more than the file name, which the
@@ -1419,8 +1423,6 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             if (PromptSeeding.SeedIfMissing(prompts, config))
                 TrySaveConfig();
 
-            promptSeedingFailure = null;
-
             // The folder was not there a moment ago, so any watcher pointed at it gave up on a
             // directory that does not exist and would never have recovered.
             ArmPromptWatcher();
@@ -1488,12 +1490,18 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             return;
 
         if (skipped.Length > 0)
-            Warn(skipped.Length == 1
+        {
+            lastSkipWarning = skipped.Length == 1
                 ? $"{skipped[0]} and has no button."
-                : $"{skipped.Length} prompt files have no button: {string.Join(", ", skipped)}.");
-        else if (hadSkipped)
+                : $"{skipped.Length} prompt files have no button: {string.Join(", ", skipped)}.";
+
+            Warn(lastSkipWarning);
+        }
+        else if (hadSkipped && StatusMessage == lastSkipWarning)
             // The warning names files. Leaving it up after they were fixed or deleted would point
-            // at files that are not there any more.
+            // at files that are not there any more - but only this line gets replaced. Informing
+            // blind would clear IsWarning over a broken config or a missing API key, which are the
+            // two things the window most needs to keep saying.
             Inform("Every prompt file reads now.");
     }
 

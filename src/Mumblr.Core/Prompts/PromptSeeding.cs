@@ -78,10 +78,16 @@ public static class PromptSeeding
             TryDelete(staging);
 
             // Another window seeded first - Directory.Move refuses an existing destination rather
-            // than merging into it. The prompts are on disk, which is all this was for, so the
-            // entries still have to leave the config. Reporting a failure here would warn about
-            // nothing and write the dead key back on the next save, permanently.
-            if (!Directory.Exists(library.Directory))
+            // than merging into it - and the prompts are on disk, which is all this was for, so
+            // the entries still have to leave the config. Reporting a failure there would warn
+            // about nothing and write the dead key back on the next save, permanently.
+            //
+            // The destination existing is not enough to believe that. Anything can create an empty
+            // folder in the moment between the check at the top and the move: a sync client putting
+            // back a directory somebody deleted, a backup, the user. Clearing the config over an
+            // empty folder would delete the prompts and then never try again, because the folder
+            // is what says the migration has run.
+            if (!AnotherWriterWon(library.Directory, source.Count))
                 throw;
         }
 
@@ -90,6 +96,20 @@ public static class PromptSeeding
         config.PrebuiltCommands = null;
         return true;
     }
+
+    /// <summary>
+    /// Whether a move that failed can be read as somebody else having seeded first. The
+    /// destination has to hold prompts, not merely exist: anything can create an empty folder in
+    /// the window between the check at the top and the move at the end - a sync client putting
+    /// back a directory somebody deleted, a backup, the user - and clearing the config over one
+    /// would delete the prompts and never try again, because the folder is what says the
+    /// migration has run.
+    /// </summary>
+    /// <param name="directory">Where the prompts were meant to land.</param>
+    /// <param name="expected">How many entries were being written; zero has nothing to lose.</param>
+    public static bool AnotherWriterWon(string directory, int expected) =>
+        Directory.Exists(directory)
+        && (expected == 0 || Directory.EnumerateFiles(directory, "*.md").Any());
 
     private static void TryDelete(string directory)
     {

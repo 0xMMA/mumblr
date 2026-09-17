@@ -1365,6 +1365,26 @@ public sealed class MainViewModelTests : IDisposable
     }
 
     [AvaloniaFact]
+    public void Fixing_a_prompt_file_does_not_take_down_an_unrelated_warning()
+    {
+        // Taking the prompt warning back means Inform, and Inform clears IsWarning. The broken
+        // config line is the one thing keeping the user from walking into the loss it warns about.
+        Directory.CreateDirectory(PromptDirectory);
+        var broken = Path.Combine(PromptDirectory, "notes.md");
+        File.WriteAllText(broken, "---\nlabel: Notes\n---\n");
+        File.WriteAllText(configStore.ConfigPath, "{ this is not json");
+
+        var viewModel = CreateViewModel();
+        viewModel.StatusMessage.ShouldContain("could not be read");
+
+        File.Delete(broken);
+        viewModel.OnPromptsChanged();
+
+        viewModel.StatusMessage.ShouldContain("could not be read");
+        viewModel.IsWarning.ShouldBeTrue();
+    }
+
+    [AvaloniaFact]
     public void A_prompt_file_that_was_fixed_stops_being_named()
     {
         // The warning names files. Leaving it up afterwards points at files that read fine now -
