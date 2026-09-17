@@ -214,29 +214,9 @@ public class PromptSeedingTests : IDisposable
     [Fact]
     public void A_seeding_that_cannot_finish_keeps_the_config_and_is_finished_next_time()
     {
-        // A directory where a prompt file should go: the write throws part way. Before the marker
-        // this was permanent - the folder it left behind was what said the migration had run, so
-        // every prompt after the failed one was gone with the entries still in a config nothing
-        // reads.
-        Directory.CreateDirectory(directory);
-        Directory.CreateDirectory(Path.Combine(directory, "prompt.md"));
-
-        var config = new MumblrConfig();
-
-        Should.Throw<Exception>(() => PromptSeeding.SeedIfMissing(Library, config));
-
-        config.PrebuiltCommands.ShouldBeNull();
-        PromptSeeding.HasRun(directory).ShouldBeFalse();
-
-        Directory.Delete(Path.Combine(directory, "prompt.md"));
-
-        PromptSeeding.SeedIfMissing(Library, config).ShouldBeTrue();
-        Library.Load().Prompts.Select(p => p.Label).ShouldBe(["Grammar", "Prompt"]);
-    }
-
-    [Fact]
-    public void An_unfinished_seeding_does_not_rewrite_what_it_already_wrote()
-    {
+        // A directory where the second prompt file should go: the write throws part way through.
+        // The entries have to still be in the config afterwards - they are the only copy of a
+        // prompt that did not get written, and nothing else can seed them next time.
         Directory.CreateDirectory(directory);
         Directory.CreateDirectory(Path.Combine(directory, "prompt.md"));
 
@@ -244,16 +224,81 @@ public class PromptSeedingTests : IDisposable
         {
             PrebuiltCommands =
             [
-                new PrebuiltCommand { Label = "Grammar", Text = "The user's own text." },
-                new PrebuiltCommand { Label = "Prompt", Text = "Never written." },
+                new PrebuiltCommand { Label = "Grammar", Text = "Mine, one." },
+                new PrebuiltCommand { Label = "Prompt", Text = "Mine, two." },
             ],
         };
 
         Should.Throw<Exception>(() => PromptSeeding.SeedIfMissing(Library, config));
+
+        config.PrebuiltCommands.ShouldNotBeNull();
+        config.PrebuiltCommands.Count.ShouldBe(2);
+        PromptSeeding.HasRun(directory).ShouldBeFalse();
+
+        Directory.Delete(Path.Combine(directory, "prompt.md"));
+
+        PromptSeeding.SeedIfMissing(Library, config).ShouldBeTrue();
+        Library.Load().Prompts.Select(p => p.Text).ShouldBe(["Mine, one.", "Mine, two."]);
+        config.PrebuiltCommands.ShouldBeNull();
+    }
+
+    [Fact]
+    public void An_unfinished_seeding_does_not_overwrite_what_it_already_wrote()
+    {
+        // The first file is written, the second throws. Between the two runs the user edits the
+        // one that landed. The retry leaves that edit alone; it writes the entry beside it rather
+        // than over it, because it cannot tell an edited file of its own from somebody else's -
+        // and a second button is visible and deletable, where a missing prompt is neither.
+        Directory.CreateDirectory(directory);
+        Directory.CreateDirectory(Path.Combine(directory, "prompt.md"));
+
+        var config = new MumblrConfig();
+
+        Should.Throw<Exception>(() => PromptSeeding.SeedIfMissing(Library, config));
+
+        var landed = Directory.GetFiles(directory, "*.md").ShouldHaveSingleItem();
+        File.WriteAllText(landed, "---\nlabel: Grammar\norder: 10\n---\n\nEdited by hand.\n");
+
         Directory.Delete(Path.Combine(directory, "prompt.md"));
         PromptSeeding.SeedIfMissing(Library, config);
 
-        Library.Load().Prompts.Single(p => p.Label == "Grammar").Text.ShouldBe("The user's own text.");
+        Library.Load().Prompts.Select(p => p.Text).ShouldContain("Edited by hand.");
+    }
+
+    [Fact]
+    public void A_half_written_file_does_not_cost_the_entry_that_belongs_in_it()
+    {
+        // The migration was killed mid-write and left a truncated grammar.md. Skipping the entry
+        // over it and then dropping it from the config deletes a prompt that exists nowhere else.
+        Directory.CreateDirectory(directory);
+        File.WriteAllText(Path.Combine(directory, "grammar.md"), "---\nlabel: Gram");
+
+        var config = new MumblrConfig
+        {
+            PrebuiltCommands = [new PrebuiltCommand { Label = "Grammar", Text = "Mine, and only here." }],
+        };
+
+        PromptSeeding.SeedIfMissing(Library, config);
+
+        Library.Load().Prompts.Select(p => p.Text).ShouldContain("Mine, and only here.");
+    }
+
+    [Fact]
+    public void A_name_that_is_already_taken_by_someone_else_does_not_cost_the_entry()
+    {
+        Directory.CreateDirectory(directory);
+        File.WriteAllText(Path.Combine(directory, "shorter.md"), "Their own prompt.\n");
+
+        var config = new MumblrConfig
+        {
+            PrebuiltCommands = [new PrebuiltCommand { Label = "Shorter", Text = "Halve the length." }],
+        };
+
+        PromptSeeding.SeedIfMissing(Library, config);
+
+        var texts = Library.Load().Prompts.Select(p => p.Text).ToList();
+        texts.ShouldContain("Their own prompt.");
+        texts.ShouldContain("Halve the length.");
     }
 
     [Fact]

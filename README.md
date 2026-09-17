@@ -177,8 +177,8 @@ The directory is the only place prompts come from, and it is not configurable. A
 repository would let a repo you cloned run its own instructions over what you dictate.
 
 Deleting a file keeps it deleted. Deleting the whole folder is how you ask for the shipped two
-back: press **Prompts** afterwards, or restart. What mumblr goes by is the hidden `.seeded` file it
-writes in there once - delete that alone and it writes back whichever of the shipped prompts are
+back: press **Prompts** afterwards, or restart. What mumblr goes by is the `.seeded` file it writes
+in there once - delete that alone and it writes back whichever of the shipped prompts are
 missing, leaving everything else as it is.
 
 ### Preview builds

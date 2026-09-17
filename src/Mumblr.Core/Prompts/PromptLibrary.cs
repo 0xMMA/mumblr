@@ -86,7 +86,17 @@ public sealed class PromptLibrary
 
         var path = Path.Combine(Directory, fileName.EndsWith(".md", StringComparison.OrdinalIgnoreCase) ? fileName : fileName + ".md");
 
-        var content = new StringBuilder()
+        File.WriteAllText(path, Render(label, order, text));
+        return path;
+    }
+
+    /// <summary>
+    /// Exactly what <see cref="Write"/> would put in the file. Separate so a caller can ask whether
+    /// a file that is already there holds this prompt or somebody else's - "the file exists" is not
+    /// the same claim as "its contents are ours", and treating it as one loses prompts.
+    /// </summary>
+    public string Render(string label, int order, string text) =>
+        new StringBuilder()
             .Append("---\n")
             // One line, whatever came in: a label is a word on a button, and a second line of it
             // would be read back as a frontmatter key that is not one and dropped.
@@ -97,8 +107,18 @@ public sealed class PromptLibrary
             .Append('\n')
             .ToString();
 
-        File.WriteAllText(path, content);
-        return path;
+    /// <summary>True when the file is there and holds exactly this, byte for byte.</summary>
+    public static bool Holds(string path, string content)
+    {
+        try
+        {
+            return File.Exists(path) && File.ReadAllText(path) == content;
+        }
+        catch (Exception)
+        {
+            // Locked or unreadable: not something to write over, and not something to count as ours.
+            return false;
+        }
     }
 
     /// <summary>

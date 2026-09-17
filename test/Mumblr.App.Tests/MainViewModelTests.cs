@@ -1418,6 +1418,48 @@ public sealed class MainViewModelTests : IDisposable
     }
 
     [AvaloniaFact]
+    public void A_second_unreadable_prompt_file_is_reported_and_the_line_is_taken_back()
+    {
+        // The guard that stops this warning displacing a more important one compared the message
+        // on screen against the one it had just overwritten, so a second broken file was never
+        // mentioned and the line then stayed up naming a file that had been deleted.
+        var viewModel = CreateViewModel();
+        var first = Path.Combine(PromptDirectory, "a.md");
+        var second = Path.Combine(PromptDirectory, "b.md");
+
+        File.WriteAllText(first, "---\nlabel: A\n---\n");
+        viewModel.OnPromptsChanged();
+        viewModel.StatusMessage.ShouldContain("a.md");
+
+        File.WriteAllText(second, "---\nlabel: B\n---\n");
+        viewModel.OnPromptsChanged();
+        viewModel.StatusMessage.ShouldContain("b.md");
+
+        File.Delete(first);
+        File.Delete(second);
+        viewModel.OnPromptsChanged();
+
+        viewModel.StatusMessage.ShouldBe("Every prompt file reads now.");
+        viewModel.IsWarning.ShouldBeFalse();
+    }
+
+    [AvaloniaFact]
+    public void A_config_key_that_outlived_a_failed_save_is_cleaned_up()
+    {
+        // The prompts are files and the marker is down, but the save that was meant to drop the
+        // key did not land - a read-only config, or another window that got there first. Left
+        // alone it comes back as buttons the next time somebody deletes the folder.
+        var viewModel = CreateViewModel();
+        AnotherWindowWrites(c => c.PrebuiltCommands =
+            [new PrebuiltCommand { Label = "Stale", Text = "Should not become a button." }]);
+
+        viewModel.ReloadConfigCommand.Execute(null);
+
+        new ConfigStore(configStore.ConfigPath).Load().PrebuiltCommands.ShouldBeNull();
+        viewModel.PrebuiltCommands.Select(c => c.Label).ShouldBe(["Grammar", "Prompt"]);
+    }
+
+    [AvaloniaFact]
     public void A_prompt_file_that_was_fixed_stops_being_named()
     {
         // The warning names files. Leaving it up afterwards points at files that read fine now -

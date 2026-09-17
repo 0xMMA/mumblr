@@ -43,9 +43,9 @@ public static class PromptSeeding
     ///
     /// Safe to run again after a failure, and it has to be: a write that throws leaves the marker
     /// unwritten, so the next start finishes the job. A file that is already there is never
-    /// overwritten - it is either the user's or this migration's own from a run that stopped - and
-    /// the config keeps its entries until the marker is down, so nothing is dropped on the strength
-    /// of files that were never written.
+    /// overwritten; it is kept when it already holds exactly the prompt this entry would write,
+    /// and otherwise the entry goes to the next free name. Every entry therefore has a file of its
+    /// own by the time the marker goes down, which is what makes dropping the config key safe.
     ///
     /// True when the config changed and the caller should save it.
     /// </summary>
@@ -66,9 +66,28 @@ public static class PromptSeeding
             if (string.IsNullOrWhiteSpace(command.Label) || string.IsNullOrWhiteSpace(command.Text))
                 continue;
 
-            var name = Unique(FileName(command.Label), taken);
-            if (!File.Exists(Path.Combine(library.Directory, name + ".md")))
-                library.Write(name, command.Label.Trim(), order, command.Text.Trim());
+            var label = command.Label.Trim();
+            var text = command.Text.Trim();
+            var wanted = library.Render(label, order, text);
+            var stem = FileName(label);
+
+            // A file being there does not make it this prompt. It can be somebody else's, or this
+            // migration's own from a run that was killed mid-write and left it half finished -
+            // and skipping the entry over either of those, then dropping it from the config,
+            // deletes a prompt that exists nowhere else. So: keep it if it already holds exactly
+            // this, and otherwise write to the next free name rather than give the entry up. The
+            // cost is a duplicate where a run was interrupted and the file it left was then
+            // edited - a second button, visible and deletable, instead of a prompt that is gone.
+            var name = Unique(stem, taken);
+            var path = Path.Combine(library.Directory, name + ".md");
+            while (File.Exists(path) && !PromptLibrary.Holds(path, wanted))
+            {
+                name = Unique(stem, taken);
+                path = Path.Combine(library.Directory, name + ".md");
+            }
+
+            if (!File.Exists(path))
+                library.Write(name, label, order, text);
 
             order += 10;
         }

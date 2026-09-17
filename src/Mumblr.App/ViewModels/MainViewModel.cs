@@ -1405,7 +1405,19 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private bool SeedPrompts()
     {
         if (PromptSeeding.HasRun(prompts.Directory))
+        {
+            // The prompts are files, but the save that was meant to drop the key did not land -
+            // a read-only config, or another window that got there first. Left alone, the entries
+            // would be written back on every later save and would come back as buttons the next
+            // time somebody deletes the folder.
+            if (config.PrebuiltCommands is not null)
+            {
+                config.PrebuiltCommands = null;
+                TrySaveConfig();
+            }
+
             return true;
+        }
 
 
         if (configBroken)
@@ -1485,6 +1497,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         if (!changedSet)
             return;
 
+        var previousSkipWarning = lastSkipWarning;
+
         if (skipped.Length > 0)
         {
             lastSkipWarning = skipped.Length == 1
@@ -1494,10 +1508,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             // Never over a warning that is already up. This fires from a watcher, at any moment,
             // and a prompt file without a prompt is worth less than a config that cannot be read -
             // which is the line that keeps its reader from walking into the loss it describes.
-            if (!IsWarning || StatusMessage == lastSkipWarning)
+            if (!IsWarning || StatusMessage == previousSkipWarning)
                 Warn(lastSkipWarning);
         }
-        else if (hadSkipped && StatusMessage == lastSkipWarning)
+        else if (hadSkipped && StatusMessage == previousSkipWarning)
             // The warning names files. Leaving it up after they were fixed or deleted would point
             // at files that are not there any more - but only this line gets replaced. Informing
             // blind would clear IsWarning over a broken config or a missing API key, which are the
