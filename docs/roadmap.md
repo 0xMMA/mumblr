@@ -3,7 +3,9 @@
 Written 2026-09-17, after hardening. Four steps in order. Each one ships a release.
 
 **Where it stands.** Steps 1 to 3 are released: `v0.2.1`, then `v0.2.2-beta.1` through the new
-channel routing, then `v0.2.2`. Step 4 is on `main` and waits for `v0.3.0`.
+channel routing, then `v0.2.2`. The releases page now reads the way it was meant to - 0.2.2 as the
+latest, the beta beside it as a pre-release, each carrying its own feed. Step 4 is on `main` and
+waits for `v0.3.0`.
 
 Step 2 closed differently than planned below: instead of a throwaway tag, the first run through the
 channel routing was the real beta of 0.2.2. It proves the same plumbing and leaves nothing to
@@ -138,6 +140,21 @@ Ship as `v0.2.2`, the first real run through the new channel mechanics.
   not before.
 
 Ships as `v0.3.0`.
+
+It took three rounds of review to get there, and each round found something the round before had
+introduced. Worth writing down, because the pattern is the lesson:
+
+1. A config that could not be parsed was loaded as defaults and written back over the user's file.
+   Survivable while a load only happened on a click; the watcher made it automatic.
+2. Seeding ran before the window knew the config had parsed, so the migration saved those defaults
+   over the file - with the prompts still inside it. And a seeding that failed part way was
+   permanent, because the directory it left behind is what says the migration has run.
+3. The button added to fix the "no way to reach the folder" gap created that directory, which
+   ended the migration for anyone who pressed it while the prompts were missing.
+
+Each one was a silent loss of the user's own text on the upgrade path this feature exists to serve,
+and none of them was visible from the diff that introduced it. A feature whose whole job is to move
+somebody's data from one place to another is worth reviewing until a round comes back empty.
 
 ---
 
