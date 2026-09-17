@@ -111,7 +111,12 @@ lines verbatim.
   `ConfigMigration.Fingerprint`, and pin it in `ConfigMigrationTests` against the literal old text
   in `ShippedDefaults` — a wrong fingerprint fails nothing and migrates nobody.
 - **A shipped prompt lives on even harder: it is a file the user owns.** `PromptSeeding` writes
-  `%APPDATA%\mumblr\prompts\*.md` once, when the directory does not exist, and never touches
-  them again. Changing `MumblrConfig.ShippedPrompts` therefore reaches new installs only. The
-  fingerprint migration still matters for the one run that moves an old `config.json` across.
+  `%APPDATA%\mumblr\prompts\*.md` once and never touches them again, so changing
+  `MumblrConfig.ShippedPrompts` reaches new installs only. The fingerprint migration still matters
+  for the one run that moves an old `config.json` across.
+- **What says "already written" is the `.seeded` marker, never the directory.** Anything can create
+  a directory - a sync client putting one back, a backup, the user - and four separate ways to lose
+  somebody's prompts came out of reading one as proof. The marker is written last, after every
+  prompt is on disk, and the config keeps its entries until it is down. Seeding is safe to run
+  again and never overwrites a file that is already there.
 - **Check CLI flags against `claude --help`,** never against memory.

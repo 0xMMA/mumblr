@@ -1332,6 +1332,39 @@ public sealed class MainViewModelTests : IDisposable
     }
 
     [AvaloniaFact]
+    public void A_prompt_folder_that_is_simply_there_does_not_stop_the_upgrade()
+    {
+        // A sync client putting one back, a backup, the user. The folder existing used to mean the
+        // migration had run, so an empty one left the prompts in a config nothing reads.
+        Directory.CreateDirectory(PromptDirectory);
+        AnotherWindowWrites(c => c.PrebuiltCommands =
+            [new PrebuiltCommand { Label = "Shorter", Text = "Halve the length." }]);
+
+        var viewModel = CreateViewModel();
+
+        viewModel.PrebuiltCommands.Select(c => c.Label).ShouldBe(["Shorter"]);
+        File.ReadAllText(configStore.ConfigPath).ShouldNotContain("prebuiltCommands");
+    }
+
+    [AvaloniaFact]
+    public void A_prompt_file_without_a_prompt_does_not_warn_over_a_broken_config()
+    {
+        // This fires from a watcher, at any moment. A prompt file with nothing in it is worth less
+        // than the line telling its reader that the next setting they change writes defaults over
+        // their config.
+        var viewModel = CreateViewModel();
+        File.WriteAllText(configStore.ConfigPath, "{ this is not json");
+        viewModel.ReloadConfigCommand.Execute(null);
+        viewModel.StatusMessage.ShouldContain("could not be read");
+
+        File.WriteAllText(Path.Combine(PromptDirectory, "notes.md"), "---\nlabel: Notes\n---\n");
+        viewModel.OnPromptsChanged();
+
+        viewModel.StatusMessage.ShouldContain("could not be read");
+        viewModel.IsWarning.ShouldBeTrue();
+    }
+
+    [AvaloniaFact]
     public void The_prompts_button_does_not_create_the_folder_over_a_broken_config()
     {
         // The folder existing is what says the migration has run. Creating an empty one here would

@@ -162,80 +162,113 @@ public class PromptSeedingTests : IDisposable
     }
 
     [Fact]
-    public void A_folder_that_appears_empty_under_the_seeding_does_not_clear_the_config()
+    public void A_folder_that_is_simply_there_does_not_stop_the_migration()
     {
-        // The whole reason the check above is about contents and not existence. The racer is
-        // already spinning before the seeding starts and waits for the staging directory rather
-        // than for a clock, and the write loop is long enough to be caught in.
-        var mine = new MumblrConfig
+        // Anything can create it: a sync client putting back a directory somebody deleted, a
+        // backup, the user. Four ways to lose somebody's prompts came out of reading an existing
+        // directory as "already done", so what says that is a file this writes last.
+        Directory.CreateDirectory(directory);
+
+        var config = new MumblrConfig
         {
-            PrebuiltCommands = [.. Enumerable.Range(0, 400)
-                .Select(i => new PrebuiltCommand { Label = $"Prompt {i}", Text = $"Do thing {i}." })],
+            PrebuiltCommands = [new PrebuiltCommand { Label = "Shorter", Text = "Halve it." }],
         };
 
-        var parent = Path.GetDirectoryName(directory)!;
-        var pattern = Path.GetFileName(directory) + ".*.tmp";
+        PromptSeeding.SeedIfMissing(Library, config).ShouldBeTrue();
 
-        using var spinning = new ManualResetEventSlim();
-        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        Library.Load().Prompts.ShouldHaveSingleItem().Label.ShouldBe("Shorter");
+        config.PrebuiltCommands.ShouldBeNull();
+    }
 
-        var racer = Task.Run(() =>
+    [Fact]
+    public void Somebody_elses_file_in_the_folder_costs_nothing()
+    {
+        Directory.CreateDirectory(directory);
+        File.WriteAllText(Path.Combine(directory, "theirs.md"), "Their prompt.\n");
+
+        var config = new MumblrConfig
         {
-            spinning.Set();
-            while (!Directory.EnumerateDirectories(parent, pattern).Any())
-            {
-                stop.Token.ThrowIfCancellationRequested();
-                Thread.Sleep(1);
-            }
+            PrebuiltCommands = [new PrebuiltCommand { Label = "Shorter", Text = "Halve it." }],
+        };
 
-            Directory.CreateDirectory(directory);
-        }, stop.Token);
+        PromptSeeding.SeedIfMissing(Library, config);
 
-        spinning.Wait(TimeSpan.FromSeconds(10)).ShouldBeTrue();
-
-        var thrown = Should.Throw<IOException>(() => PromptSeeding.SeedIfMissing(Library, mine));
-        racer.Wait(TimeSpan.FromSeconds(10));
-
-        thrown.ShouldNotBeNull();
-        mine.PrebuiltCommands.ShouldNotBeNull();
-        mine.PrebuiltCommands.Count.ShouldBe(400);
+        Library.Load().Prompts.Select(p => p.Label).ShouldBe(["Shorter", "theirs"]);
     }
 
     [Fact]
-    public void A_folder_that_holds_prompts_means_another_window_got_there_first()
+    public void A_file_that_is_already_there_is_never_overwritten()
     {
-        // Two windows starting at once. Directory.Move refuses an existing destination rather than
-        // merging into it, but the prompts are on disk, which is what this was for - so the
-        // entries still have to leave the config rather than be written back on the next save.
+        // Either the user's, or this migration's own from a run that stopped part way. Both are
+        // the content that belongs there; neither wants the shipped text on top of it.
         Directory.CreateDirectory(directory);
-        Library.Write("theirs", "Theirs", 10, "Their prompt.");
+        File.WriteAllText(Path.Combine(directory, "grammar.md"), "Mine, thanks.\n");
 
-        PromptSeeding.AnotherWriterWon(directory, expected: 1).ShouldBeTrue();
+        PromptSeeding.SeedIfMissing(Library, new MumblrConfig());
+
+        var prompts = Library.Load().Prompts;
+        prompts.Single(p => Path.GetFileName(p.Path) == "grammar.md").Text.ShouldBe("Mine, thanks.");
+        prompts.Select(p => p.Label).ShouldContain("Prompt");
     }
 
     [Fact]
-    public void An_empty_folder_does_not_mean_another_window_got_there_first()
+    public void A_seeding_that_cannot_finish_keeps_the_config_and_is_finished_next_time()
     {
-        // Anything can create one in the window between the check and the move: a sync client
-        // putting back a directory somebody deleted, a backup, the user. Reading that as "already
-        // seeded" clears the config over nothing, and the folder then stops it ever trying again.
+        // A directory where a prompt file should go: the write throws part way. Before the marker
+        // this was permanent - the folder it left behind was what said the migration had run, so
+        // every prompt after the failed one was gone with the entries still in a config nothing
+        // reads.
         Directory.CreateDirectory(directory);
+        Directory.CreateDirectory(Path.Combine(directory, "prompt.md"));
 
-        PromptSeeding.AnotherWriterWon(directory, expected: 1).ShouldBeFalse();
+        var config = new MumblrConfig();
+
+        Should.Throw<Exception>(() => PromptSeeding.SeedIfMissing(Library, config));
+
+        config.PrebuiltCommands.ShouldBeNull();
+        PromptSeeding.HasRun(directory).ShouldBeFalse();
+
+        Directory.Delete(Path.Combine(directory, "prompt.md"));
+
+        PromptSeeding.SeedIfMissing(Library, config).ShouldBeTrue();
+        Library.Load().Prompts.Select(p => p.Label).ShouldBe(["Grammar", "Prompt"]);
     }
 
     [Fact]
-    public void With_nothing_to_write_an_empty_folder_is_enough()
+    public void An_unfinished_seeding_does_not_rewrite_what_it_already_wrote()
     {
         Directory.CreateDirectory(directory);
+        Directory.CreateDirectory(Path.Combine(directory, "prompt.md"));
 
-        PromptSeeding.AnotherWriterWon(directory, expected: 0).ShouldBeTrue();
+        var config = new MumblrConfig
+        {
+            PrebuiltCommands =
+            [
+                new PrebuiltCommand { Label = "Grammar", Text = "The user's own text." },
+                new PrebuiltCommand { Label = "Prompt", Text = "Never written." },
+            ],
+        };
+
+        Should.Throw<Exception>(() => PromptSeeding.SeedIfMissing(Library, config));
+        Directory.Delete(Path.Combine(directory, "prompt.md"));
+        PromptSeeding.SeedIfMissing(Library, config);
+
+        Library.Load().Prompts.Single(p => p.Label == "Grammar").Text.ShouldBe("The user's own text.");
     }
 
     [Fact]
-    public void A_folder_that_is_not_there_is_nobody_getting_there_first()
+    public void A_very_long_label_does_not_become_a_very_long_path()
     {
-        PromptSeeding.AnotherWriterWon(directory, expected: 1).ShouldBeFalse();
+        var config = new MumblrConfig
+        {
+            PrebuiltCommands = [new PrebuiltCommand { Label = new string('x', 300), Text = "a" }],
+        };
+
+        PromptSeeding.SeedIfMissing(Library, config);
+
+        var prompt = Library.Load().Prompts.ShouldHaveSingleItem();
+        Path.GetFileName(prompt.Path).Length.ShouldBeLessThan(80);
+        prompt.Label.Length.ShouldBe(300);
     }
 
     public void Dispose()

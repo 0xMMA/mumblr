@@ -23,105 +23,66 @@ public static class PromptSeeding
     private const int MaxNameLength = 60;
 
     /// <summary>
-    /// Seeds the directory when it does not exist, and only then. The trigger is deliberately the
-    /// directory rather than it being empty: a prompt you deleted stays deleted, and deleting the
-    /// whole directory is how you ask for the shipped ones back on the next start.
+    /// Written last, and only when every prompt is on disk. This - not the directory - is what says
+    /// the entries have been written out, because anything can create a directory: a sync client
+    /// putting one back, a backup, the user. Four separate ways to lose somebody's prompts came out
+    /// of asking the directory instead.
+    /// </summary>
+    private const string MarkerName = ".seeded";
+
+    /// <summary>True once the entries have been written out and the config key may be dropped.</summary>
+    public static bool HasRun(string directory) => File.Exists(Path.Combine(directory, MarkerName));
+
+    /// <summary>
+    /// Writes the prompt files unless that has already happened. The text comes from the config
+    /// when it still holds entries, so a prompt the user edited survives the move as they left it.
+    /// An unedited one was already replaced by the current shipped text on load - that is what
+    /// <see cref="ConfigMigration"/> is for - so it arrives current without this having to know
+    /// which is which. A list that is there but empty means somebody wanted no buttons and is
+    /// honoured; only a missing one seeds the shipped two.
     ///
-    /// The text comes from the config when it still holds entries, so a prompt the user edited
-    /// survives the move as they left it. An unedited one was already replaced by the current
-    /// shipped text on load - that is what <see cref="ConfigMigration"/> is for - so it arrives
-    /// current without this having to know which is which. A list that is there but empty means
-    /// somebody wanted no buttons, and is honoured; only a missing one seeds the shipped two.
-    ///
-    /// All or nothing: the files are written into a sibling directory and moved into place, so a
-    /// write that fails part way leaves nothing behind and the next start tries again. A partial
-    /// directory would end the migration forever, with the entries still in config.json and
-    /// nothing left that reads them.
+    /// Safe to run again after a failure, and it has to be: a write that throws leaves the marker
+    /// unwritten, so the next start finishes the job. A file that is already there is never
+    /// overwritten - it is either the user's or this migration's own from a run that stopped - and
+    /// the config keeps its entries until the marker is down, so nothing is dropped on the strength
+    /// of files that were never written.
     ///
     /// True when the config changed and the caller should save it.
     /// </summary>
     public static bool SeedIfMissing(PromptLibrary library, MumblrConfig config)
     {
-        if (Directory.Exists(library.Directory))
+        if (HasRun(library.Directory))
             return false;
 
         var source = config.PrebuiltCommands ?? (IReadOnlyList<PrebuiltCommand>)MumblrConfig.FreshPrompts();
 
-        var staging = $"{library.Directory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)}.{Environment.ProcessId}.tmp";
-        if (Directory.Exists(staging))
-            Directory.Delete(staging, recursive: true);
+        Directory.CreateDirectory(library.Directory);
 
-        try
+        var taken = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var order = 10;
+
+        foreach (var command in source)
         {
-            var into = new PromptLibrary(staging);
-            var taken = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            var order = 10;
+            if (string.IsNullOrWhiteSpace(command.Label) || string.IsNullOrWhiteSpace(command.Text))
+                continue;
 
-            Directory.CreateDirectory(staging);
+            var name = Unique(FileName(command.Label), taken);
+            if (!File.Exists(Path.Combine(library.Directory, name + ".md")))
+                library.Write(name, command.Label.Trim(), order, command.Text.Trim());
 
-            foreach (var command in source)
-            {
-                if (string.IsNullOrWhiteSpace(command.Label) || string.IsNullOrWhiteSpace(command.Text))
-                    continue;
-
-                into.Write(Unique(FileName(command.Label), taken), command.Label.Trim(), order, command.Text.Trim());
-                order += 10;
-            }
-
-            // No CreateDirectory for the parent: the staging directory above already created it,
-            // and Path.GetDirectoryName of a path ending in a separator returns the target itself -
-            // which would create the destination and make the move below fail every time.
-            Directory.Move(staging, library.Directory);
+            order += 10;
         }
-        catch (Exception)
-        {
-            TryDelete(staging);
 
-            // Another window seeded first - Directory.Move refuses an existing destination rather
-            // than merging into it - and the prompts are on disk, which is all this was for, so
-            // the entries still have to leave the config. Reporting a failure there would warn
-            // about nothing and write the dead key back on the next save, permanently.
-            //
-            // The destination existing is not enough to believe that. Anything can create an empty
-            // folder in the moment between the check at the top and the move: a sync client putting
-            // back a directory somebody deleted, a backup, the user. Clearing the config over an
-            // empty folder would delete the prompts and then never try again, because the folder
-            // is what says the migration has run.
-            if (!AnotherWriterWon(library.Directory, source.Count))
-                throw;
-        }
+        File.WriteAllText(
+            Path.Combine(library.Directory, MarkerName),
+            "The prompts in this folder were written by mumblr on first run. Delete this folder to\n"
+            + "get the shipped ones back; deleting this file alone makes mumblr write the missing\n"
+            + "ones again on the next start.\n");
 
         // The buttons come from the files now. Leaving the entries behind would mean editing them
         // in the place the Config button opens and watching nothing happen.
         config.PrebuiltCommands = null;
         return true;
-    }
-
-    /// <summary>
-    /// Whether a move that failed can be read as somebody else having seeded first. The
-    /// destination has to hold prompts, not merely exist: anything can create an empty folder in
-    /// the window between the check at the top and the move at the end - a sync client putting
-    /// back a directory somebody deleted, a backup, the user - and clearing the config over one
-    /// would delete the prompts and never try again, because the folder is what says the
-    /// migration has run.
-    /// </summary>
-    /// <param name="directory">Where the prompts were meant to land.</param>
-    /// <param name="expected">How many entries were being written; zero has nothing to lose.</param>
-    public static bool AnotherWriterWon(string directory, int expected) =>
-        Directory.Exists(directory)
-        && (expected == 0 || Directory.EnumerateFiles(directory, "*.md").Any());
-
-    private static void TryDelete(string directory)
-    {
-        try
-        {
-            if (Directory.Exists(directory))
-                Directory.Delete(directory, recursive: true);
-        }
-        catch (Exception)
-        {
-            // The seeding already failed; a leftover staging directory is not the news.
-        }
     }
 
     /// <summary>A label as a file name: lowercase, no spaces, nothing a file system would refuse.</summary>

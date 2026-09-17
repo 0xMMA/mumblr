@@ -1378,12 +1378,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     /// <summary>
     /// Opens the prompt folder in the file manager. A feature whose whole point is "these are your
-    /// files" needs a way to reach them that is not a path in a README.
-    ///
-    /// Seeds first rather than creating the folder. The folder existing is what says the migration
-    /// has run, so creating an empty one here would end it: the entries would stay in config.json
-    /// with nothing left that reads them. Clicking this while the prompts are missing is the
-    /// recovery, not the thing that cancels it.
+    /// files" needs a way to reach them that is not a path in a README. Seeds first, so clicking it
+    /// while the prompts are missing writes them rather than opening an empty folder.
     /// </summary>
     [RelayCommand]
     private void OpenPrompts()
@@ -1402,13 +1398,13 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
-    /// Writes the prompt files if they are not there yet. False when the folder is still not there
-    /// afterwards: either because writing it failed, or because this session is running on a config
-    /// that did not parse and seeding it would save those defaults over the user's file.
+    /// Writes the prompt files if that has not happened yet. False when it could not: either the
+    /// writing failed, or this session is running on a config that did not parse and seeding it
+    /// would save those defaults over the user's file.
     /// </summary>
     private bool SeedPrompts()
     {
-        if (Directory.Exists(prompts.Directory))
+        if (PromptSeeding.HasRun(prompts.Directory))
             return true;
 
 
@@ -1423,8 +1419,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             if (PromptSeeding.SeedIfMissing(prompts, config))
                 TrySaveConfig();
 
-            // The folder was not there a moment ago, so any watcher pointed at it gave up on a
-            // directory that does not exist and would never have recovered.
+            // The folder may not have been there a moment ago, and a watcher pointed at a
+            // directory that does not exist watches nothing and never recovers.
             ArmPromptWatcher();
 
             RefreshPrebuiltCommands();
@@ -1495,7 +1491,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 ? $"{skipped[0]} and has no button."
                 : $"{skipped.Length} prompt files have no button: {string.Join(", ", skipped)}.";
 
-            Warn(lastSkipWarning);
+            // Never over a warning that is already up. This fires from a watcher, at any moment,
+            // and a prompt file without a prompt is worth less than a config that cannot be read -
+            // which is the line that keeps its reader from walking into the loss it describes.
+            if (!IsWarning || StatusMessage == lastSkipWarning)
+                Warn(lastSkipWarning);
         }
         else if (hadSkipped && StatusMessage == lastSkipWarning)
             // The warning names files. Leaving it up after they were fixed or deleted would point
