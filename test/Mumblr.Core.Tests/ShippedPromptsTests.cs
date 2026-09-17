@@ -13,7 +13,7 @@ public class ShippedPromptsTests
     [Fact]
     public void The_shipped_grammar_command_is_English_and_keeps_the_language_of_the_text()
     {
-        var grammar = new MumblrConfig().PrebuiltCommands.Single(command => command.Label == "Grammar");
+        var grammar = MumblrConfig.ShippedPrompts.Single(command => command.Label == "Grammar");
 
         grammar.Text.ShouldContain("Change nothing about the content");
         grammar.Text.ShouldContain("stays in the language it was dictated in");
@@ -23,7 +23,7 @@ public class ShippedPromptsTests
     [Fact]
     public void The_shipped_prompt_command_shapes_without_inventing()
     {
-        var prompt = new MumblrConfig().PrebuiltCommands.Single(command => command.Label == "Prompt");
+        var prompt = MumblrConfig.ShippedPrompts.Single(command => command.Label == "Prompt");
 
         // The three things that make it safe on a dictation whose context the model cannot see.
         prompt.Text.ShouldContain("Open questions");

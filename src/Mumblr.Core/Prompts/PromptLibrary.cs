@@ -49,7 +49,7 @@ public sealed class PromptLibrary
         {
             try
             {
-                var prompt = Parse(File.ReadAllText(path), path);
+                var prompt = Parse(Read(path), path);
                 if (prompt is null)
                     skipped.Add(path);
                 else
@@ -57,7 +57,8 @@ public sealed class PromptLibrary
             }
             catch (Exception)
             {
-                // Locked, gone since the listing, or not text at all.
+                // Locked, gone since the listing, or not UTF-8 - a file saved as Latin-1 would
+                // otherwise decode into replacement characters and send garbled instructions.
                 skipped.Add(path);
             }
         }
@@ -65,7 +66,7 @@ public sealed class PromptLibrary
         return new PromptLoadResult(
             prompts
                 .OrderBy(p => p.Order)
-                .ThenBy(p => p.Label, StringComparer.CurrentCultureIgnoreCase)
+                .ThenBy(p => p.Label, StringComparer.OrdinalIgnoreCase)
                 .ToList(),
             skipped);
     }
@@ -82,7 +83,9 @@ public sealed class PromptLibrary
 
         var content = new StringBuilder()
             .Append("---\n")
-            .Append("label: ").Append(label).Append('\n')
+            // One line, whatever came in: a label is a word on a button, and a second line of it
+            // would be read back as a frontmatter key that is not one and dropped.
+            .Append("label: ").Append(OneLine(label)).Append('\n')
             .Append("order: ").Append(order.ToString(CultureInfo.InvariantCulture)).Append('\n')
             .Append("---\n\n")
             .Append(text.TrimEnd())
@@ -94,9 +97,24 @@ public sealed class PromptLibrary
     }
 
     /// <summary>
-    /// Frontmatter is the first line being <c>---</c> and everything up to the next <c>---</c>, as
-    /// `key: value` lines. Unknown keys are ignored rather than refused: a prompt is a text file
-    /// someone edits by hand, and a stray line should not cost them the button.
+    /// Read as strict UTF-8. The default decoder turns bad bytes into replacement characters, and
+    /// a prompt is an instruction that gets executed over the user's text - a file this cannot
+    /// read should lose its button and be named, not be sent in half.
+    /// </summary>
+    private static string Read(string path)
+    {
+        using var reader = new StreamReader(path, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true), detectEncodingFromByteOrderMarks: true);
+        return reader.ReadToEnd();
+    }
+
+    /// <summary>
+    /// Frontmatter is the first line being <c>---</c>, then <c>key: value</c> lines, then a closing
+    /// <c>---</c>. Unknown keys are ignored rather than refused: a prompt is a text file someone
+    /// edits by hand, and a stray key should not cost them the button.
+    ///
+    /// Every line in between has to look like a pair, though. A prompt that opens with a markdown
+    /// rule and has another one further down is not a prompt with frontmatter, and reading it as
+    /// one would silently swallow everything above the second rule.
     /// </summary>
     private static PromptFile? Parse(string content, string path)
     {
@@ -108,7 +126,7 @@ public sealed class PromptLibrary
         if (lines.Length > 0 && lines[0].Trim() == "---")
         {
             var end = Array.FindIndex(lines, 1, line => line.Trim() == "---");
-            if (end > 0)
+            if (end > 0 && lines[1..end].All(IsFrontmatterLine))
             {
                 for (var i = 1; i < end; i++)
                 {
@@ -134,6 +152,12 @@ public sealed class PromptLibrary
         // An empty prompt is not a prompt. Sending one would hand claude the header and no task.
         return body.Length == 0 ? null : new PromptFile(label, order, body, path);
     }
+
+    private static bool IsFrontmatterLine(string line) =>
+        line.Trim().Length == 0 || line.IndexOf(':') > 0;
+
+    private static string OneLine(string text) =>
+        string.Join(' ', text.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries).Select(part => part.Trim()));
 }
 
 /// <summary>What <see cref="PromptLibrary.Load"/> found, and what it had to leave out.</summary>

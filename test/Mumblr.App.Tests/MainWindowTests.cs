@@ -4,6 +4,7 @@ using Avalonia.Threading;
 using Mumblr.App.ViewModels;
 using Mumblr.App.Views;
 using Mumblr.Core.Config;
+using Mumblr.Core.Prompts;
 using Mumblr.Core.Stt;
 
 namespace Mumblr.App.Tests;
@@ -38,7 +39,10 @@ public sealed class MainWindowTests : IDisposable
     private (MainWindow Window, MainViewModel ViewModel) Open()
     {
         window = new MainWindow();
-        viewModel = new MainViewModel(workspace, window, configStore, devices, capture, hotkeys, claude, engines, updates);
+        viewModel = new MainViewModel(
+            workspace, window, configStore, devices, capture, hotkeys, claude, engines, updates,
+            prompts: new PromptLibrary(Path.Combine(workspace, "prompts")),
+            fileWatcherFactory: (_, _, _) => new NoWatcher());
         window.DataContext = viewModel;
         window.Show();
         viewModel.Initialize();

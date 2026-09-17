@@ -46,7 +46,6 @@ public sealed class ConfigMigrationTests : IDisposable
 
         config.MicrophoneDeviceId.ShouldBe("dev-1");
         config.Claude.HeaderPrompt.ShouldBe(ClaudeConfig.DefaultHeaderPrompt);
-        config.PrebuiltCommands.Select(command => command.Label).ShouldBe(["Grammar", "Prompt"]);
         config.Stt.Languages.ShouldBe(["de", "en"]);
         config.Stt.NoVerbatim.ShouldBeTrue();
         config.Hotkeys.Enabled.ShouldBeTrue();
@@ -108,7 +107,7 @@ public sealed class ConfigMigrationTests : IDisposable
         var text = System.Text.Json.JsonSerializer.Serialize(ShippedDefaults.Grammar014Text);
         var config = Load("{\"prebuiltCommands\":[{\"label\":\"" + label + "\",\"text\":" + text + "}]}");
 
-        var shipped = new MumblrConfig().PrebuiltCommands;
+        var shipped = MumblrConfig.ShippedPrompts;
         config.PrebuiltCommands.Select(command => (command.Label, command.Text))
             .ShouldBe(shipped.Select(command => (command.Label, command.Text)));
     }
@@ -118,7 +117,7 @@ public sealed class ConfigMigrationTests : IDisposable
     {
         // What 0.2.0 wrote before the Prompt button existed - derived from the current Grammar
         // text, so this pins the rule rather than the historic wording.
-        var grammar = new MumblrConfig().PrebuiltCommands.Single(command => command.Label == "Grammar");
+        var grammar = MumblrConfig.ShippedPrompts.Single(command => command.Label == "Grammar");
         var text = System.Text.Json.JsonSerializer.Serialize(grammar.Text);
         var config = Load("{\"prebuiltCommands\":[{\"label\":\"Grammar\",\"text\":" + text + "}]}");
 

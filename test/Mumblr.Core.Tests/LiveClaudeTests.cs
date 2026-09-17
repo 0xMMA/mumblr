@@ -59,7 +59,7 @@ public class LiveClaudeTests
             var file = Path.Combine(directory.FullName, "dictated.md");
             await File.WriteAllTextAsync(file, RamblingDictation + Environment.NewLine, cancellation);
 
-            var prompt = new MumblrConfig().PrebuiltCommands.Single(command => command.Label == "Prompt");
+            var prompt = MumblrConfig.ShippedPrompts.Single(command => command.Label == "Prompt");
             var result = await new ClaudeCommandRunner(() => new ClaudeConfig()).RunAsync(prompt.Text, file, cancellation);
             var shaped = await File.ReadAllTextAsync(file, cancellation);
 
@@ -99,7 +99,7 @@ public class LiveClaudeTests
             var file = Path.Combine(directory.FullName, "dictated.md");
             await File.WriteAllTextAsync(file, GermanDictation + Environment.NewLine, cancellation);
 
-            var grammar = new MumblrConfig().PrebuiltCommands.Single(command => command.Label == "Grammar");
+            var grammar = MumblrConfig.ShippedPrompts.Single(command => command.Label == "Grammar");
             var result = await new ClaudeCommandRunner(() => new ClaudeConfig()).RunAsync(grammar.Text, file, cancellation);
             var edited = await File.ReadAllTextAsync(file, cancellation);
 

@@ -18,7 +18,8 @@ stable build only to stable ones, so the download you install is the one you sta
 
 - **The command buttons are your files now.** Every markdown file in `%APPDATA%\mumblr\prompts`
   is a button above the command log. Add one, edit one, delete one - the buttons follow without a
-  restart, and the file is plain text you own rather than a string inside `config.json`.
+  restart, and the file is plain text you own rather than a string inside `config.json`. The new
+  **Prompts** button in the toolbar opens the folder.
   Frontmatter names the button and places it (`label`, `order`); everything below is what goes to
   Claude. Both keys are optional.
 - **Your existing buttons move across on the first run.** Whatever `prebuiltCommands` held becomes

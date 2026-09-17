@@ -32,11 +32,23 @@ public sealed class MumblrConfig
     };
 
     /// <summary>
-    /// Commands that are always the same sentence. Speaking a fixed string into a microphone so it
+    /// Where the command buttons used to live. Null means "nothing here", and the key is left out
+    /// of the file entirely: the prompts are markdown files now, and a dead key in the file the
+    /// Config button opens is an invitation to edit something nothing reads. An existing install's
+    /// entries are read once, moved into files, and then cleared to null.
+    ///
+    /// An empty list is not the same as null. It means someone deliberately has no buttons, and
+    /// nothing seeds the shipped ones back over that.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<PrebuiltCommand>? PrebuiltCommands { get; set; }
+
+    /// <summary>
+    /// What a fresh install gets as prompt files. Speaking a fixed string into a microphone so it
     /// can be transcribed back into the same fixed string is ceremony, and it adds a round trip
     /// that can mis-hear it. These skip STT entirely.
     /// </summary>
-    public List<PrebuiltCommand> PrebuiltCommands { get; set; } = new()
+    public static IReadOnlyList<PrebuiltCommand> ShippedPrompts { get; } = new List<PrebuiltCommand>
     {
         new PrebuiltCommand
         {

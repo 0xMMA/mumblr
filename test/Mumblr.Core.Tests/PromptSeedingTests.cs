@@ -17,7 +17,10 @@ public class PromptSeedingTests : IDisposable
         PromptSeeding.SeedIfMissing(Library, config).ShouldBeTrue();
 
         Library.Load().Prompts.Select(p => p.Label).ShouldBe(["Grammar", "Prompt"]);
-        config.PrebuiltCommands.ShouldBeEmpty();
+
+        // Null, not empty: the key leaves config.json entirely, so nothing invites an edit in the
+        // file the Config button opens that no longer has any effect.
+        config.PrebuiltCommands.ShouldBeNull();
     }
 
     [Fact]
@@ -107,6 +110,70 @@ public class PromptSeedingTests : IDisposable
         PromptSeeding.SeedIfMissing(Library, config).ShouldBeTrue();
 
         Library.Load().Prompts.Select(p => p.Label).ShouldBe(["Grammar", "Prompt"]);
+    }
+
+    [Fact]
+    public void Wanting_no_buttons_at_all_is_honoured()
+    {
+        // An empty list is a decision. Only a missing one means "this install has never been asked".
+        var config = new MumblrConfig { PrebuiltCommands = [] };
+
+        PromptSeeding.SeedIfMissing(Library, config).ShouldBeTrue();
+
+        Library.Load().Prompts.ShouldBeEmpty();
+        config.PrebuiltCommands.ShouldBeNull();
+    }
+
+    [Fact]
+    public void A_label_windows_reserves_as_a_device_still_gets_a_file()
+    {
+        // con.md writes to the console on Windows: no file, no exception, no button, no warning.
+        var config = new MumblrConfig
+        {
+            PrebuiltCommands = [new PrebuiltCommand { Label = "Con", Text = "a" }],
+        };
+
+        PromptSeeding.SeedIfMissing(Library, config);
+
+        var prompt = Library.Load().Prompts.ShouldHaveSingleItem();
+        prompt.Label.ShouldBe("Con");
+        Path.GetFileNameWithoutExtension(prompt.Path).ToLowerInvariant().ShouldNotBe("con");
+    }
+
+    [Fact]
+    public void A_very_long_label_does_not_become_a_very_long_path()
+    {
+        var config = new MumblrConfig
+        {
+            PrebuiltCommands = [new PrebuiltCommand { Label = new string('x', 300), Text = "a" }],
+        };
+
+        PromptSeeding.SeedIfMissing(Library, config);
+
+        var prompt = Library.Load().Prompts.ShouldHaveSingleItem();
+        Path.GetFileName(prompt.Path).Length.ShouldBeLessThan(80);
+        prompt.Label.Length.ShouldBe(300);
+    }
+
+    [Fact]
+    public void A_seeding_that_cannot_finish_leaves_nothing_behind_and_tries_again()
+    {
+        // A file where the directory should go: everything is written, and the move into place
+        // fails. A half-filled directory would end the migration forever - Directory.Exists is
+        // what stops it running again - with the entries still in a config nothing reads.
+        File.WriteAllText(directory, "in the way");
+
+        var config = new MumblrConfig
+        {
+            PrebuiltCommands = [new PrebuiltCommand { Label = "Shorter", Text = "Halve it." }],
+        };
+
+        Should.Throw<Exception>(() => PromptSeeding.SeedIfMissing(Library, config));
+
+        config.PrebuiltCommands.ShouldNotBeNull();
+        Directory.GetDirectories(Path.GetTempPath(), Path.GetFileName(directory) + ".*").ShouldBeEmpty();
+
+        File.Delete(directory);
     }
 
     public void Dispose() => TestDirectories.Delete(directory);

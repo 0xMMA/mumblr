@@ -88,10 +88,14 @@
                 <Button Classes="toolbar" Content="Copy" Command="{Binding CopyCommand}"
                         ToolTip.Tip="{Binding CopyButtonTooltip}" />
 
+                <Button Classes="toolbar" Content="Prompts"
+                        Command="{Binding OpenPromptsCommand}"
+                        ToolTip.Tip="Open the prompts folder. One markdown file per button above the command log - add, edit or delete one and the buttons follow." />
+
                 <StackPanel Classes="toolbar" Orientation="Horizontal" Spacing="4">
                     <Button Content="Config"
                             Command="{Binding OpenConfigCommand}"
-                            ToolTip.Tip="Open config.json - keyterms, dictionary, hotkeys, prompts, claude model" />
+                            ToolTip.Tip="Open config.json - microphone, keyterms, dictionary, hotkeys, claude model" />
                     <Button Content="&#x21BB;"
                             Command="{Binding ReloadConfigCommand}"
                             ToolTip.Tip="Reload config.json after editing it, without restarting mumblr" />

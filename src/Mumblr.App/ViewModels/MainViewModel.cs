@@ -81,6 +81,16 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     /// <summary>Another window wrote the shared config while this one was busy. Applied on the way back to Idle.</summary>
     private bool configReloadPending;
 
+    /// <summary>Why the prompt files could not be written on start, if they could not.</summary>
+    private string? promptSeedingFailure;
+
+    /// <summary>
+    /// The prompt files that held no prompt the last time they were read. Kept so the window says
+    /// so when that changes and not on every event: the reload runs on every config change and at
+    /// the end of every take, and a warning there erases whatever the window was actually saying.
+    /// </summary>
+    private string[] skippedPrompts = [];
+
     /// <summary>
     /// The config file exists but could not be parsed, so this session is running on defaults. Said
     /// out loud on start: the next setting change writes those defaults over the file, and a typo
@@ -424,14 +434,21 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         // The first run after the upgrade writes what config.json carried into files, and a fresh
         // install gets the shipped two. Once, and only when the directory is not there at all.
-        try
+        //
+        // Never over a config that did not parse: this session is running on defaults then, and
+        // saving them back would replace the user's file - with their prompts still inside it -
+        // before the warning below has even been drawn.
+        if (!configBroken)
         {
-            if (PromptSeeding.SeedIfMissing(prompts, config))
-                TrySaveConfig();
-        }
-        catch (Exception ex)
-        {
-            Warn($"Could not write the prompt files: {ex.Message}");
+            try
+            {
+                if (PromptSeeding.SeedIfMissing(prompts, config))
+                    TrySaveConfig();
+            }
+            catch (Exception ex)
+            {
+                promptSeedingFailure = $"Could not write the prompt files: {ex.Message}";
+            }
         }
 
         RefreshDevices();
@@ -445,6 +462,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         if (configBroken)
             Warn("config.json could not be read - running on defaults. Fix the file and press the reload button, "
                  + "or the next setting you change writes the defaults over it.");
+        else if (promptSeedingFailure is { Length: > 0 })
+            // Said after RefreshDevices rather than where it happened: a missing microphone is
+            // loud, and it used to warn over the one notice that the migration did not run.
+            Warn(promptSeedingFailure);
         else if (!HasApiKey)
             Warn($"No API key. Set {ApiKeyProvider.PrimaryVariable} (or {ApiKeyProvider.FallbackVariable}) and restart.");
         else if (!IsWarning)
@@ -1361,6 +1382,24 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     /// changed: one save raises several events, and replacing the collection would flicker the
     /// buttons and overwrite the status line each time.
     /// </summary>
+    /// <summary>
+    /// Opens the prompt folder in the file manager. A feature whose whole point is "these are your
+    /// files" needs a way to reach them that is not a path in a README.
+    /// </summary>
+    [RelayCommand]
+    private void OpenPrompts()
+    {
+        try
+        {
+            Directory.CreateDirectory(prompts.Directory);
+            Process.Start(new ProcessStartInfo(prompts.Directory) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            Warn($"Could not open the prompts folder: {ex.Message}");
+        }
+    }
+
     private void RefreshPrebuiltCommands()
     {
         var loaded = prompts.Load();
@@ -1379,11 +1418,16 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
 
         // A file that holds no prompt costs its button and nothing else, but it costs it silently -
-        // and a button that is simply not there is indistinguishable from one never written.
-        if (loaded.Skipped.Count > 0)
-            Warn(loaded.Skipped.Count == 1
-                ? $"{Path.GetFileName(loaded.Skipped[0])} holds no prompt and has no button."
-                : $"{loaded.Skipped.Count} prompt files hold no prompt and have no buttons.");
+        // and a button that is simply not there is indistinguishable from one never written. Said
+        // when the set changes, not while it stays the same: this runs at the end of every take.
+        var skipped = loaded.Skipped.ToArray();
+        var changedSet = !skipped.SequenceEqual(skippedPrompts, StringComparer.Ordinal);
+        skippedPrompts = skipped;
+
+        if (skipped.Length > 0 && changedSet)
+            Warn(skipped.Length == 1
+                ? $"{Path.GetFileName(skipped[0])} holds no prompt and has no button."
+                : $"{skipped.Length} prompt files hold no prompt and have no buttons.");
     }
 
     /// <summary>
@@ -1395,6 +1439,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         if (promptWatcher is null)
             return;
 
+        // No IsBusy guard, unlike the config: a running prebuilt command holds its own
+        // PrebuiltCommand instance, taken when the button was clicked, so rebuilding the row
+        // cannot change the text that is already on its way to claude. The buttons are allowed to
+        // follow the files immediately.
         RefreshPrebuiltCommands();
     }
 

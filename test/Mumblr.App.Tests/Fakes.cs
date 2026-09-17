@@ -229,6 +229,18 @@ public sealed class FakeSttEngineFactory : ISttEngineFactory
     }
 }
 
+/// <summary>
+/// Stands in for a FileSystemWatcher. Every view model these tests build has to be given one:
+/// the real watcher would run over the user's own %APPDATA%\mumblr - the developer's prompts,
+/// the developer's home directory - and post events into the dispatcher the tests pump.
+/// </summary>
+public sealed class NoWatcher : IDisposable
+{
+    public void Dispose()
+    {
+    }
+}
+
 public sealed class FakeUpdateService : IUpdateService
 {
     public UpdateService.UpdateCheck Outcome { get; set; } = UpdateService.UpdateCheck.UpToDate;

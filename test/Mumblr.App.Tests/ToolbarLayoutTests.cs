@@ -7,6 +7,7 @@ using Avalonia.VisualTree;
 using Mumblr.App.ViewModels;
 using Mumblr.App.Views;
 using Mumblr.Core.Config;
+using Mumblr.Core.Prompts;
 using Mumblr.Core.Stt;
 
 namespace Mumblr.App.Tests;
@@ -38,7 +39,9 @@ public sealed class ToolbarLayoutTests : IDisposable
             new FakeCapture(),
             new FakeHotkeyService(),
             new FakeClaudeRunner(),
-            new FakeSttEngineFactory());
+            new FakeSttEngineFactory(),
+            prompts: new PromptLibrary(Path.Combine(workspace, "prompts")),
+            fileWatcherFactory: (_, _, _) => new NoWatcher());
 
         window.DataContext = viewModel;
         if (width is not null)

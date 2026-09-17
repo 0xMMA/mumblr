@@ -49,9 +49,11 @@ public static class ConfigMigration
             changed = true;
         }
 
-        if (LegacyPrebuiltCommands.Contains(Fingerprint(config.PrebuiltCommands)))
+        // Only while the entries are still in the file. Once they are markdown files the user owns,
+        // nothing replaces them - see PromptSeeding, and the note in AGENTS.md.
+        if (config.PrebuiltCommands is { Count: > 0 } prebuilt && LegacyPrebuiltCommands.Contains(Fingerprint(prebuilt)))
         {
-            config.PrebuiltCommands = new MumblrConfig().PrebuiltCommands;
+            config.PrebuiltCommands = [.. MumblrConfig.ShippedPrompts];
             changed = true;
         }
 

@@ -2,12 +2,27 @@
 
 Written 2026-09-17, after hardening. Four steps in order. Each one ships a release.
 
-**Where it stands.** Step 1 is tagged. Steps 2 and 3 are on `main` and wait for one tag together:
-`v0.2.2-beta.1` first, then `v0.2.2`. Step 4 is not started.
+**Where it stands.** Steps 1 to 3 are released: `v0.2.1`, then `v0.2.2-beta.1` through the new
+channel routing, then `v0.2.2`. Step 4 is on `main` and waits for `v0.3.0`.
 
 Step 2 closed differently than planned below: instead of a throwaway tag, the first run through the
-channel routing is the real beta of 0.2.2. It proves the same plumbing, leaves nothing to delete,
-and gives the preview a week of use before the stable tag.
+channel routing was the real beta of 0.2.2. It proves the same plumbing and leaves nothing to
+delete.
+
+Two things went wrong on the way and are worth keeping:
+
+- **GitHub refuses the workflow token the call that publishes a draft release.** vpk creates the
+  release as a draft, uploads into it, and PATCHes it to published; that PATCH answers "Resource
+  not accessible by integration" with `contents: write` granted and the same token having just
+  created the release. v0.2.0 went through in September and the workflow did not change, so the
+  rule did. The job creates the release itself now, already published, and vpk merges into it. The
+  asset-rename PATCH is a different endpoint and still works.
+- **A review of steps 2 and 3 found two ways to lose a config.** A file that cannot be parsed was
+  adopted as defaults and written back on the next setting change, and the new watcher made that
+  automatic rather than a deliberate click. And a reload could land in the window between the hold
+  key going down and the Commanding state, reinstalling the keyboard hook under a key that was
+  physically held. Both are fixed in `01a1de3`; the review is why 0.2.2 is worth more than the two
+  issues it was cut for.
 
 ## Settled
 
@@ -109,10 +124,14 @@ Ship as `v0.2.2`, the first real run through the new channel mechanics.
 `%APPDATA%\mumblr\prompts\*.md`. Frontmatter carries `label` and `order`; the body is the prompt.
 
 - Seed Grammar and Prompt on first run.
-- **Migration must not eat an edited prompt.** `ConfigMigration` already knows whether a
-  `PrebuiltCommands` entry still matches a shipped default. Unchanged entries become fresh files
-  from the current default; edited ones are written out carrying the user's text. `PrebuiltCommands`
-  leaves the config afterwards.
+- **Migration must not eat an edited prompt.** What shipped is simpler than what was planned here:
+  `ConfigMigration` has already replaced the unedited entries with the current shipped text by the
+  time the seeding runs, so the seeding writes out whatever `PrebuiltCommands` holds, wholesale,
+  and does not have to know which is which. It is all-or-nothing - the files go into a sibling
+  directory and are moved into place - because a half-filled directory would end the migration
+  forever, with the entries still in a config that nothing reads any more. `PrebuiltCommands` then
+  leaves the file: the key is written out only when it is there, so it disappears rather than
+  sitting empty. An empty list is honoured as "no buttons wanted"; only a missing one seeds.
 - Execution does not change. `RunPrebuiltAsync` already feeds `prebuilt.Text` into the same
   `RunCommandAsync` a spoken command uses. What is new is loading, ordering and reloading on change.
 - The UI stays buttons while there are few. A picker gets built when there are really ten prompts,

@@ -66,15 +66,28 @@ public class PromptLibraryTests : IDisposable
     }
 
     [Fact]
-    public void A_stray_frontmatter_line_costs_nothing()
+    public void An_unknown_frontmatter_key_costs_nothing()
     {
         // These are files people edit by hand. An unknown key is ignored, not refused.
-        Given("grammar.md", "---\nlabel: Grammar\nmodel: opus\nnot a pair\n---\nFix grammar.\n");
+        Given("grammar.md", "---\nlabel: Grammar\nmodel: opus\n\n---\nFix grammar.\n");
 
         var prompt = Library.Load().Prompts.ShouldHaveSingleItem();
 
         prompt.Label.ShouldBe("Grammar");
         prompt.Text.ShouldBe("Fix grammar.");
+    }
+
+    [Fact]
+    public void A_prompt_that_opens_with_a_markdown_rule_keeps_its_first_paragraph()
+    {
+        // Read as frontmatter, this would swallow everything above the second rule and hand claude
+        // half a prompt. Frontmatter is key-value lines; a paragraph is not.
+        Given("steps.md", "---\n\nStep one.\n\n---\n\nStep two.\n");
+
+        var prompt = Library.Load().Prompts.ShouldHaveSingleItem();
+
+        prompt.Label.ShouldBe("steps");
+        prompt.Text.ShouldBe("---\n\nStep one.\n\n---\n\nStep two.");
     }
 
     [Fact]
@@ -88,6 +101,20 @@ public class PromptLibraryTests : IDisposable
 
         loaded.Prompts.ShouldHaveSingleItem().Label.ShouldBe("real");
         Path.GetFileName(loaded.Skipped.ShouldHaveSingleItem()).ShouldBe("empty.md");
+    }
+
+    [Fact]
+    public void A_file_that_is_not_utf8_is_skipped_rather_than_mangled()
+    {
+        // The default decoder turns bad bytes into replacement characters. A prompt is an
+        // instruction that gets executed over the user's text; half of one must not be sent.
+        Directory.CreateDirectory(directory);
+        File.WriteAllBytes(Path.Combine(directory, "latin1.md"), [0x53, 0x63, 0x68, 0xF6, 0x6E, 0x20, 0x66, 0x69, 0x78, 0x0A]);
+
+        var loaded = Library.Load();
+
+        loaded.Prompts.ShouldBeEmpty();
+        Path.GetFileName(loaded.Skipped.ShouldHaveSingleItem()).ShouldBe("latin1.md");
     }
 
     [Fact]

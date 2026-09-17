@@ -153,7 +153,8 @@ stays off until you turn it on again.
 
 The command buttons are files. `%APPDATA%\mumblr\prompts\*.md`, one prompt each, written on the
 first run and yours from then on - add one, edit one, delete one, and the buttons follow without a
-restart. Frontmatter names the button and places it; everything below it is what goes to Claude:
+restart. The **Prompts** button in the toolbar opens the folder. Frontmatter names the button and
+places it; everything below it is what goes to Claude:
 
 ```markdown
 ---
@@ -170,8 +171,11 @@ window says which one.
 
 The directory is the only place prompts come from, and it is not configurable. A prompt goes to
 `claude -p` with permission to read and edit the dictation file, so a prompt directory inside a
-repository would let a repo you cloned run its own instructions over what you dictate. Deleting a
-file keeps it deleted; deleting the whole directory is how you ask for the shipped two back.
+repository would let a repo you cloned run its own instructions over what you dictate.
+
+Deleting a file keeps it deleted. Deleting the whole directory is how you ask for the shipped two
+back - that one takes a restart, unlike every other change, because the directory is also what
+tells mumblr the prompts have never been written.
 
 ### Preview builds
 

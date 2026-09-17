@@ -9,14 +9,34 @@ namespace Mumblr.Core.Prompts;
 public static class PromptSeeding
 {
     /// <summary>
+    /// Windows refuses these as file names whatever the extension, and it refuses them by writing
+    /// to a device instead of throwing - a prompt called "Con" would vanish without an error.
+    /// </summary>
+    private static readonly HashSet<string> ReservedNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "CON", "PRN", "AUX", "NUL",
+        "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
+        "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
+    };
+
+    /// <summary>A file name long enough for any label and short enough for any path.</summary>
+    private const int MaxNameLength = 60;
+
+    /// <summary>
     /// Seeds the directory when it does not exist, and only then. The trigger is deliberately the
     /// directory rather than it being empty: a prompt you deleted stays deleted, and deleting the
-    /// whole directory is how you ask for the shipped ones back.
+    /// whole directory is how you ask for the shipped ones back on the next start.
     ///
     /// The text comes from the config when it still holds entries, so a prompt the user edited
     /// survives the move as they left it. An unedited one was already replaced by the current
     /// shipped text on load - that is what <see cref="ConfigMigration"/> is for - so it arrives
-    /// current without this having to know which is which.
+    /// current without this having to know which is which. A list that is there but empty means
+    /// somebody wanted no buttons, and is honoured; only a missing one seeds the shipped two.
+    ///
+    /// All or nothing: the files are written into a sibling directory and moved into place, so a
+    /// write that fails part way leaves nothing behind and the next start tries again. A partial
+    /// directory would end the migration forever, with the entries still in config.json and
+    /// nothing left that reads them.
     ///
     /// True when the config changed and the caller should save it.
     /// </summary>
@@ -25,38 +45,84 @@ public static class PromptSeeding
         if (Directory.Exists(library.Directory))
             return false;
 
-        var source = config.PrebuiltCommands is { Count: > 0 }
-            ? config.PrebuiltCommands
-            : new MumblrConfig().PrebuiltCommands;
+        var source = config.PrebuiltCommands ?? MumblrConfig.ShippedPrompts;
 
-        var taken = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var order = 10;
+        var staging = $"{library.Directory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)}.{Environment.ProcessId}.tmp";
+        if (Directory.Exists(staging))
+            Directory.Delete(staging, recursive: true);
 
-        foreach (var command in source)
+        try
         {
-            if (string.IsNullOrWhiteSpace(command.Label) || string.IsNullOrWhiteSpace(command.Text))
-                continue;
+            var into = new PromptLibrary(staging);
+            var taken = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var order = 10;
 
-            library.Write(Unique(FileName(command.Label), taken), command.Label.Trim(), order, command.Text.Trim());
-            order += 10;
+            Directory.CreateDirectory(staging);
+
+            foreach (var command in source)
+            {
+                if (string.IsNullOrWhiteSpace(command.Label) || string.IsNullOrWhiteSpace(command.Text))
+                    continue;
+
+                into.Write(Unique(FileName(command.Label), taken), command.Label.Trim(), order, command.Text.Trim());
+                order += 10;
+            }
+
+            var parent = Path.GetDirectoryName(library.Directory);
+            if (!string.IsNullOrEmpty(parent))
+                Directory.CreateDirectory(parent);
+
+            Directory.Move(staging, library.Directory);
+        }
+        catch (Exception)
+        {
+            TryDelete(staging);
+            throw;
         }
 
         // The buttons come from the files now. Leaving the entries behind would mean editing them
         // in the place the Config button opens and watching nothing happen.
-        config.PrebuiltCommands = [];
+        config.PrebuiltCommands = null;
         return true;
+    }
+
+    private static void TryDelete(string directory)
+    {
+        try
+        {
+            if (Directory.Exists(directory))
+                Directory.Delete(directory, recursive: true);
+        }
+        catch (Exception)
+        {
+            // The seeding already failed; a leftover staging directory is not the news.
+        }
     }
 
     /// <summary>A label as a file name: lowercase, no spaces, nothing a file system would refuse.</summary>
     private static string FileName(string label)
     {
         var invalid = Path.GetInvalidFileNameChars();
-        var name = new string(label.Trim().ToLowerInvariant()
-            .Select(c => char.IsWhiteSpace(c) || Array.IndexOf(invalid, c) >= 0 ? '-' : c)
-            .ToArray())
-            .Trim('-');
 
-        return name.Length == 0 ? "prompt" : name;
+        // A label that already ends in .md must not produce the same file as the one that does
+        // not: Write appends the extension only when it is missing, so "Grammar.md" and "Grammar"
+        // would both land in grammar.md and the first would be gone.
+        var bare = label.Trim();
+        if (bare.EndsWith(".md", StringComparison.OrdinalIgnoreCase))
+            bare = bare[..^3];
+
+        var name = new string(bare.ToLowerInvariant()
+            .Select(c => char.IsWhiteSpace(c) || Array.IndexOf(invalid, c) >= 0 || c is ':' or '*' or '?' or '"' or '<' or '>' or '|' or '\\' or '/' ? '-' : c)
+            .ToArray())
+            .Trim('-', '.', ' ');
+
+        if (name.Length > MaxNameLength)
+            name = name[..MaxNameLength].TrimEnd('-', '.', ' ');
+
+        if (name.Length == 0 || ReservedNames.Contains(name))
+            name = name.Length == 0 ? "prompt" : name + "-prompt";
+
+        return name;
     }
 
     private static string Unique(string name, HashSet<string> taken)

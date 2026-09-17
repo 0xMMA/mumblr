@@ -14,13 +14,6 @@ namespace Mumblr.App.Tests;
 
 public sealed class MainViewModelTests : IDisposable
 {
-    private sealed class NoWatcher : IDisposable
-    {
-        public void Dispose()
-        {
-        }
-    }
-
     private readonly string workspace = Path.Combine(Path.GetTempPath(), $"mumblr-{Guid.NewGuid():N}");
     private readonly FakeEditorHost editor = new();
     private readonly FakeDeviceEnumerator devices = new();
@@ -1273,12 +1266,49 @@ public sealed class MainViewModelTests : IDisposable
     }
 
     [AvaloniaFact]
+    public void A_config_that_does_not_parse_is_not_overwritten_by_the_prompt_migration()
+    {
+        // The seeding save would write this session's defaults over the user's file - with their
+        // prompts still inside it - before the warning about the broken config is even drawn.
+        File.WriteAllText(configStore.ConfigPath, "{ this is not json");
+        var before = File.ReadAllText(configStore.ConfigPath);
+
+        var viewModel = CreateViewModel();
+
+        File.ReadAllText(configStore.ConfigPath).ShouldBe(before);
+        Directory.Exists(PromptDirectory).ShouldBeFalse();
+        viewModel.IsWarning.ShouldBeTrue();
+        viewModel.StatusMessage.ShouldContain("could not be read");
+    }
+
+    [AvaloniaFact]
+    public async Task A_half_written_prompt_file_does_not_swallow_the_stop_message()
+    {
+        // The prompt reload runs at the end of every take. Complaining about the same broken file
+        // each time would erase whatever the window was actually saying, forever.
+        var viewModel = CreateViewModel();
+        File.WriteAllText(Path.Combine(PromptDirectory, "notes.md"), "---\nlabel: Notes\n---\n");
+
+        viewModel.OnPromptsChanged();
+        viewModel.StatusMessage.ShouldContain("notes.md");
+
+        await viewModel.ToggleRecordingCommand.ExecuteAsync(null);
+        AnotherWindowWrites(c => c.SttMode = SttMode.Batch);
+        viewModel.OnConfigFileChanged();
+        await viewModel.ToggleRecordingCommand.ExecuteAsync(null);
+        await PumpAsync();
+
+        viewModel.StatusMessage.ShouldBe("Stopped. The config changed on disk and was reloaded.");
+    }
+
+    [AvaloniaFact]
     public void The_prompts_leave_config_json_once_they_are_files()
     {
         // Otherwise they sit in the file the Config button opens, where editing them does nothing.
         CreateViewModel();
 
-        new ConfigStore(configStore.ConfigPath).Load().PrebuiltCommands.ShouldBeEmpty();
+        new ConfigStore(configStore.ConfigPath).Load().PrebuiltCommands.ShouldBeNull();
+        File.ReadAllText(configStore.ConfigPath).ShouldNotContain("prebuiltCommands");
     }
 
     [AvaloniaFact]

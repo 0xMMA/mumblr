@@ -54,13 +54,6 @@ public sealed class FileChangeWatcher : IDisposable
         }
     }
 
-    /// <summary>
-    /// False once the watcher has given up - the buffer overflowed, or the directory went away.
-    /// The window promises that a change in another window arrives by itself, so the one way that
-    /// promise can die quietly is worth being able to ask about.
-    /// </summary>
-    public bool IsWatching => watcher is { EnableRaisingEvents: true };
-
     public void Dispose()
     {
         var current = watcher;
