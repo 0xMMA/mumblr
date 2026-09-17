@@ -64,7 +64,18 @@ public sealed class UpdateService : IUpdateService
     {
         try
         {
-            manager ??= new UpdateManager(new GithubSource(repositoryUrl, AccessToken, prerelease: false));
+            // prerelease: true is what lets a preview build see its own releases at all. Preview
+            // and stable are the same binary - the channel is baked into the package by vpk, not
+            // compiled in - so the flag cannot be decided per build. It has to be the one that
+            // works for both, and it is: the source filters with `includePrereleases || !x.Prerelease`,
+            // so true means "stable and prerelease", not "prerelease only". What keeps the two
+            // apart is the channel: a release that carries no releases.<this channel>.json is
+            // skipped, and stable releases carry no preview feed.
+            //
+            // GitHub is asked for the 10 most recent releases and no more. Preview releases that
+            // pile up push the newest stable one off that list, and a stable client then stops
+            // seeing updates - so preview tags stay rare and throwaway ones get deleted.
+            manager ??= new UpdateManager(new GithubSource(repositoryUrl, AccessToken, prerelease: true));
 
             // A plain `dotnet run` or an unzipped build without the Velopack layout cannot update.
             if (!manager.IsInstalled)

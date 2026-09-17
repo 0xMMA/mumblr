@@ -147,6 +147,18 @@ want. The **hotkeys** toggle in the status bar turns all of them off with one cl
 the chords and removes the keyboard hook; the buttons keep working. The state is saved, so it
 stays off until you turn it on again.
 
+### Preview builds
+
+Releases come in two flavours, and the download you install decides which one you get. A normal
+release (`v0.2.1`) is stable; one tagged `v0.2.1-beta.1` is a preview, marked as a pre-release on
+the releases page, with `-win-beta-` in its filename. The two update independently: an installed
+build only ever offers updates from its own release channel, so a preview never arrives on a
+stable install and a stable release never quietly replaces a preview.
+
+There is no switch in the window. Install a preview build to get on previews, install a stable one
+to get back - both are per-user installs over the same app, and your `config.json` is untouched
+either way.
+
 ## What it deliberately is not
 
 - No wake word and no hands-free control - you press something to record.

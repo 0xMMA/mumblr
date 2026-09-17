@@ -23,7 +23,7 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      - name: Resolve version
+      - name: Resolve the version and the channel
         id: version
         shell: pwsh
         # The ref name goes through the environment, never into the script text: git allows an
@@ -33,12 +33,34 @@ jobs:
           REF_NAME: ${{ github.ref_name }}
         run: |
           $version = $env:REF_NAME -replace '^v', ''
-          if ($version -notmatch '^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$') {
+
+          # [regex]::Match rather than -notmatch: -notmatch fills $Matches only as a side effect of
+          # returning false, which is exactly the branch that is not taken here.
+          $parsed = [regex]::Match($version, '^\d+\.\d+\.\d+(?:-(?<suffix>[0-9A-Za-z.-]+))?$')
+          if (-not $parsed.Success) {
             throw "Tag '$($env:REF_NAME)' is not a version tag"
           }
+          $suffix = $parsed.Groups['suffix'].Value
+
+          # Two channels, and the tag decides which one. Velopack bakes the channel into the
+          # package, and an installed build only ever reads releases.<its own channel>.json - so a
+          # build that lands in the wrong feed is invisible to everyone rather than merely
+          # mislabelled. An unplanned suffix therefore stops here instead of being guessed at.
+          if (-not $suffix) {
+            $channel = 'win'
+            $pre = 'false'
+          } elseif ($suffix -match '^beta\.\d+$') {
+            $channel = 'win-beta'
+            $pre = 'true'
+          } else {
+            throw "Tag '$($env:REF_NAME)' names no release channel. Use vX.Y.Z or vX.Y.Z-beta.N"
+          }
+
           "version=$version" >> $env:GITHUB_OUTPUT
           "tag=v$version" >> $env:GITHUB_OUTPUT
-          Write-Host "Releasing $version"
+          "channel=$channel" >> $env:GITHUB_OUTPUT
+          "pre=$pre" >> $env:GITHUB_OUTPUT
+          Write-Host "Releasing $version on channel $channel (prerelease: $pre)"
 
       - name: Test
         run: dotnet test --configuration Release
@@ -57,6 +79,7 @@ jobs:
           vpk pack
           --packId mumblr
           --packVersion ${{ steps.version.outputs.version }}
+          --channel ${{ steps.version.outputs.channel }}
           --packDir publish
           --mainExe mumblr.exe
           --packTitle mumblr
@@ -75,18 +98,24 @@ jobs:
           --repoUrl https://github.com/${{ github.repository }}
           --token $env:VPK_TOKEN
           --outputDir releases
+          --channel ${{ steps.version.outputs.channel }}
           --tag ${{ steps.version.outputs.tag }}
           --releaseName "mumblr ${{ steps.version.outputs.version }}"
           --targetCommitish ${{ github.sha }}
+          --pre ${{ steps.version.outputs.pre }}
           --merge
           --publish
 
       # Renaming on disk before the upload does not work: vpk reads the file names from its own
       # manifest rather than from the directory, and dies with "Could not find file". So the
       # assets are renamed on the release afterwards. Only the .nupkg is referenced by
-      # releases.win.json, so the installer and the portable zip are free to be renamed - and a
-      # Downloads folder holding mumblr-win-Setup.exe, mumblr-win-Setup(1).exe and
+      # releases.<channel>.json, so the installer and the portable zip are free to be renamed -
+      # and a Downloads folder holding mumblr-win-Setup.exe, mumblr-win-Setup(1).exe and
       # mumblr-win-Setup(2).exe tells you nothing about which build is which.
+      #
+      # The names carry the channel because vpk puts it there: the installer for channel win-beta
+      # is mumblr-win-beta-Setup.exe. Matching is against that prefix rather than a pattern, so a
+      # channel with a dash or a dot in it needs no escaping.
       - name: Name the release assets after the version
         shell: pwsh
         env:
@@ -94,6 +123,8 @@ jobs:
         run: |
           $version = '${{ steps.version.outputs.version }}'
           $tag = '${{ steps.version.outputs.tag }}'
+          $channel = '${{ steps.version.outputs.channel }}'
+          $prefix = "mumblr-$channel-"
           $renamed = 0
 
           $assets = gh api "repos/${{ github.repository }}/releases/tags/$tag" --jq '.assets[] | "\(.id) \(.name)"'
@@ -101,9 +132,9 @@ jobs:
 
           foreach ($line in $assets) {
             $id, $name = $line -split ' ', 2
-            if ($name -notmatch '^mumblr-win-(Setup\.exe|Portable\.zip)$') { continue }
+            if ($name -ne "${prefix}Setup.exe" -and $name -ne "${prefix}Portable.zip") { continue }
 
-            $target = $name -replace '^mumblr-win-', "mumblr-$version-win-"
+            $target = "mumblr-$version-$channel-" + $name.Substring($prefix.Length)
             gh api -X PATCH "repos/${{ github.repository }}/releases/assets/$id" -f name="$target" | Out-Null
 
             # gh does not throw on a failed call. Counting the attempt instead of the result let a
@@ -119,5 +150,5 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: mumblr-win-x64
+          name: mumblr-${{ steps.version.outputs.channel }}-x64
           path: releases/*
