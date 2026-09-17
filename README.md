@@ -166,8 +166,11 @@ Halve the length without losing a single point. Keep the author's words and lang
 ```
 
 Both keys are optional: a file with no frontmatter is a prompt named after itself, and one with no
-`order` sorts after every file that has one. A file that holds no prompt gets no button, and the
-window says which one.
+`order` sorts after every file that has one. Anything else between the fences - a comment, a key
+mumblr does not know - is ignored, and a block that names neither `label` nor `order` is not read
+as frontmatter at all, so a prompt may open with a horizontal rule or a line like `Rule: keep it
+short` and keep it. A file that holds no prompt, or that is not UTF-8, gets no button and the
+window says which one and why.
 
 The directory is the only place prompts come from, and it is not configurable. A prompt goes to
 `claude -p` with permission to read and edit the dictation file, so a prompt directory inside a
