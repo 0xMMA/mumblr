@@ -45,7 +45,7 @@ public static class PromptSeeding
         if (Directory.Exists(library.Directory))
             return false;
 
-        var source = config.PrebuiltCommands ?? MumblrConfig.ShippedPrompts;
+        var source = config.PrebuiltCommands ?? (IReadOnlyList<PrebuiltCommand>)MumblrConfig.FreshPrompts();
 
         var staging = $"{library.Directory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)}.{Environment.ProcessId}.tmp";
         if (Directory.Exists(staging))
@@ -68,10 +68,9 @@ public static class PromptSeeding
                 order += 10;
             }
 
-            var parent = Path.GetDirectoryName(library.Directory);
-            if (!string.IsNullOrEmpty(parent))
-                Directory.CreateDirectory(parent);
-
+            // No CreateDirectory for the parent: the staging directory above already created it,
+            // and Path.GetDirectoryName of a path ending in a separator returns the target itself -
+            // which would create the destination and make the move below fail every time.
             Directory.Move(staging, library.Directory);
         }
         catch (Exception)
@@ -108,7 +107,7 @@ public static class PromptSeeding
         // not: Write appends the extension only when it is missing, so "Grammar.md" and "Grammar"
         // would both land in grammar.md and the first would be gone.
         var bare = label.Trim();
-        if (bare.EndsWith(".md", StringComparison.OrdinalIgnoreCase))
+        while (bare.EndsWith(".md", StringComparison.OrdinalIgnoreCase))
             bare = bare[..^3];
 
         var name = new string(bare.ToLowerInvariant()
@@ -117,10 +116,22 @@ public static class PromptSeeding
             .Trim('-', '.', ' ');
 
         if (name.Length > MaxNameLength)
-            name = name[..MaxNameLength].TrimEnd('-', '.', ' ');
+        {
+            // Never between the halves of a surrogate pair: a label in an alphabet outside the
+            // basic plane would otherwise end in half a character.
+            var cut = MaxNameLength;
+            if (char.IsHighSurrogate(name[cut - 1]))
+                cut--;
 
-        if (name.Length == 0 || ReservedNames.Contains(name))
-            name = name.Length == 0 ? "prompt" : name + "-prompt";
+            name = name[..cut].TrimEnd('-', '.', ' ');
+        }
+
+        // Windows applies the device rule to the segment before the first dot, so con.txt.md is
+        // the console just as con.md is.
+        if (name.Length == 0)
+            name = "prompt";
+        else if (ReservedNames.Contains(name.Split('.')[0]))
+            name += "-prompt";
 
         return name;
     }

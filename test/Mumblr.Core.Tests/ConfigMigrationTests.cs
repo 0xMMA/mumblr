@@ -69,7 +69,7 @@ public sealed class ConfigMigrationTests : IDisposable
     {
         var config = Load("""{"prebuiltCommands":[null,{"label":"Shorter","text":"Halve it."}]}""");
 
-        config.PrebuiltCommands.Select(command => command.Label).ShouldBe(["Shorter"]);
+        config.PrebuiltCommands!.Select(command => command.Label).ShouldBe(["Shorter"]);
     }
 
     [Fact]
@@ -108,7 +108,7 @@ public sealed class ConfigMigrationTests : IDisposable
         var config = Load("{\"prebuiltCommands\":[{\"label\":\"" + label + "\",\"text\":" + text + "}]}");
 
         var shipped = MumblrConfig.ShippedPrompts;
-        config.PrebuiltCommands.Select(command => (command.Label, command.Text))
+        config.PrebuiltCommands!.Select(command => (command.Label, command.Text))
             .ShouldBe(shipped.Select(command => (command.Label, command.Text)));
     }
 
@@ -121,7 +121,7 @@ public sealed class ConfigMigrationTests : IDisposable
         var text = System.Text.Json.JsonSerializer.Serialize(grammar.Text);
         var config = Load("{\"prebuiltCommands\":[{\"label\":\"Grammar\",\"text\":" + text + "}]}");
 
-        config.PrebuiltCommands.Select(command => command.Label).ShouldBe(["Grammar", "Prompt"]);
+        config.PrebuiltCommands!.Select(command => command.Label).ShouldBe(["Grammar", "Prompt"]);
     }
 
     [Fact]
@@ -131,8 +131,8 @@ public sealed class ConfigMigrationTests : IDisposable
         var config = Load("{\"prebuiltCommands\":[{\"label\":\"Grammar\",\"text\":" + text +
             "},{\"label\":\"Shorter\",\"text\":\"Kürze das auf die Hälfte.\"}]}");
 
-        config.PrebuiltCommands.Count.ShouldBe(2);
-        config.PrebuiltCommands[0].Text.ShouldBe(ShippedDefaults.Grammar014Text);
+        config.PrebuiltCommands!.Count.ShouldBe(2);
+        config.PrebuiltCommands![0].Text.ShouldBe(ShippedDefaults.Grammar014Text);
     }
 
     [Fact]

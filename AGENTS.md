@@ -112,6 +112,6 @@ lines verbatim.
   in `ShippedDefaults` — a wrong fingerprint fails nothing and migrates nobody.
 - **A shipped prompt lives on even harder: it is a file the user owns.** `PromptSeeding` writes
   `%APPDATA%\mumblr\prompts\*.md` once, when the directory does not exist, and never touches
-  them again. Changing `MumblrConfig.PrebuiltCommands` therefore reaches new installs only. The
+  them again. Changing `MumblrConfig.ShippedPrompts` therefore reaches new installs only. The
   fingerprint migration still matters for the one run that moves an old `config.json` across.
 - **Check CLI flags against `claude --help`,** never against memory.

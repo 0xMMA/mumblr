@@ -85,8 +85,8 @@ public sealed class FileChangeWatcher : IDisposable
 
     /// <summary>
     /// The watcher disables itself on an internal error, so the change that raised it is the last
-    /// one this session sees. Reported as one more change: the caller reloads, notices nothing new,
-    /// and can ask <see cref="IsWatching"/> whether it is still being told about them.
+    /// one this session sees. Reported as one more change, so the caller reads the files once more
+    /// before the events stop coming.
     /// </summary>
     private void OnError(object? sender, ErrorEventArgs e) => changed();
 }

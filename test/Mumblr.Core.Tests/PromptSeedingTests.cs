@@ -168,13 +168,25 @@ public class PromptSeedingTests : IDisposable
             PrebuiltCommands = [new PrebuiltCommand { Label = "Shorter", Text = "Halve it." }],
         };
 
-        Should.Throw<Exception>(() => PromptSeeding.SeedIfMissing(Library, config));
+        Should.Throw<IOException>(() => PromptSeeding.SeedIfMissing(Library, config));
 
-        config.PrebuiltCommands.ShouldNotBeNull();
+        // Nothing half-done: no prompt directory, no staging left over, and the entries still in
+        // the config, which is the only thing that can seed them next time.
+        Directory.Exists(directory).ShouldBeFalse();
         Directory.GetDirectories(Path.GetTempPath(), Path.GetFileName(directory) + ".*").ShouldBeEmpty();
+        config.PrebuiltCommands.ShouldNotBeNull();
 
         File.Delete(directory);
+
+        PromptSeeding.SeedIfMissing(Library, config).ShouldBeTrue();
+        Library.Load().Prompts.ShouldHaveSingleItem().Label.ShouldBe("Shorter");
     }
 
-    public void Dispose() => TestDirectories.Delete(directory);
+    public void Dispose()
+    {
+        if (File.Exists(directory))
+            File.Delete(directory);
+
+        TestDirectories.Delete(directory);
+    }
 }

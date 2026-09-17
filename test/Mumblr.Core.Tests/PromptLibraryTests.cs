@@ -100,7 +100,51 @@ public class PromptLibraryTests : IDisposable
         var loaded = Library.Load();
 
         loaded.Prompts.ShouldHaveSingleItem().Label.ShouldBe("real");
-        Path.GetFileName(loaded.Skipped.ShouldHaveSingleItem()).ShouldBe("empty.md");
+        var skipped = loaded.Skipped.ShouldHaveSingleItem();
+        Path.GetFileName(skipped.Path).ShouldBe("empty.md");
+        skipped.Reason.ShouldBe("holds no prompt");
+    }
+
+    [Fact]
+    public void A_comment_in_the_frontmatter_does_not_cost_the_label()
+    {
+        // These are files people edit by hand, and the block still names label and order.
+        Given("grammar.md", "---\n# my notes\nlabel: Grammar\norder: 10\n---\n\nFix grammar.\n");
+
+        var prompt = Library.Load().Prompts.ShouldHaveSingleItem();
+
+        prompt.Label.ShouldBe("Grammar");
+        prompt.Order.ShouldBe(10);
+        prompt.Text.ShouldBe("Fix grammar.");
+    }
+
+    [Fact]
+    public void A_prompt_that_opens_with_a_rule_keeps_it_even_when_it_reads_like_a_pair()
+    {
+        // "Rule: ..." is punctuated exactly like frontmatter and is not. What tells them apart is
+        // that frontmatter names label or order; this names neither, so it is text.
+        Given("rules.md", "---\nRule: always be concise\n---\n\nRewrite the text.\n");
+
+        var prompt = Library.Load().Prompts.ShouldHaveSingleItem();
+
+        prompt.Text.ShouldContain("Rule: always be concise");
+        prompt.Text.ShouldContain("Rewrite the text.");
+    }
+
+    [Fact]
+    public void A_byte_order_mark_does_not_turn_the_strict_decoder_off()
+    {
+        // StreamReader replaces the encoding it was handed the moment it sees a mark, with the
+        // forgiving one - so the strictness would hold for exactly the files Windows editors do
+        // not write. The mark itself must still not end up in the prompt.
+        Directory.CreateDirectory(directory);
+        File.WriteAllBytes(Path.Combine(directory, "bom-latin1.md"), [0xEF, 0xBB, 0xBF, 0x53, 0x63, 0x68, 0xF6, 0x6E, 0x0A]);
+        File.WriteAllBytes(Path.Combine(directory, "bom-utf8.md"), [0xEF, 0xBB, 0xBF, 0x46, 0x69, 0x78, 0x2E, 0x0A]);
+
+        var loaded = Library.Load();
+
+        loaded.Prompts.ShouldHaveSingleItem().Text.ShouldBe("Fix.");
+        Path.GetFileName(loaded.Skipped.ShouldHaveSingleItem().Path).ShouldBe("bom-latin1.md");
     }
 
     [Fact]
@@ -114,7 +158,11 @@ public class PromptLibraryTests : IDisposable
         var loaded = Library.Load();
 
         loaded.Prompts.ShouldBeEmpty();
-        Path.GetFileName(loaded.Skipped.ShouldHaveSingleItem()).ShouldBe("latin1.md");
+        var skipped = loaded.Skipped.ShouldHaveSingleItem();
+        Path.GetFileName(skipped.Path).ShouldBe("latin1.md");
+
+        // Not "holds no prompt": that sends its owner looking for missing text, not at the encoding.
+        skipped.Reason.ShouldBe("is not UTF-8");
     }
 
     [Fact]

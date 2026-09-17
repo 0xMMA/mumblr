@@ -212,7 +212,7 @@ public class ConfigStoreTests : IDisposable
         reloaded.Stt.Languages.ShouldBe(["de", "en", "fr"]);
         reloaded.Claude.Model.ShouldBe("sonnet");
         reloaded.Claude.HeaderPrompt.ShouldBe("Be terse.");
-        reloaded.PrebuiltCommands.Single().Label.ShouldBe("Shorter");
+        reloaded.PrebuiltCommands!.Single().Label.ShouldBe("Shorter");
     }
 
     [Fact]

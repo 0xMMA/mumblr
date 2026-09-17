@@ -1302,13 +1302,52 @@ public sealed class MainViewModelTests : IDisposable
     }
 
     [AvaloniaFact]
-    public void The_prompts_leave_config_json_once_they_are_files()
+    public void An_upgrade_moves_the_prompts_out_of_config_json_and_into_files()
     {
-        // Otherwise they sit in the file the Config button opens, where editing them does nothing.
-        CreateViewModel();
+        // The whole point of the feature, end to end: a config from the version before, with the
+        // buttons still inside it, and one start.
+        AnotherWindowWrites(c => c.PrebuiltCommands =
+            [new PrebuiltCommand { Label = "Shorter", Text = "Halve the length." }]);
+        File.ReadAllText(configStore.ConfigPath).ShouldContain("prebuiltCommands");
 
-        new ConfigStore(configStore.ConfigPath).Load().PrebuiltCommands.ShouldBeNull();
+        var viewModel = CreateViewModel();
+
+        viewModel.PrebuiltCommands.Select(c => c.Label).ShouldBe(["Shorter"]);
+        viewModel.PrebuiltCommands[0].Text.ShouldBe("Halve the length.");
+
+        // And the key is gone from the file the Config button opens, rather than sitting there
+        // empty inviting an edit that does nothing.
         File.ReadAllText(configStore.ConfigPath).ShouldNotContain("prebuiltCommands");
+        new ConfigStore(configStore.ConfigPath).Load().PrebuiltCommands.ShouldBeNull();
+    }
+
+    [AvaloniaFact]
+    public void The_prompts_button_does_not_create_the_folder_over_a_broken_config()
+    {
+        // The folder existing is what says the migration has run. Creating an empty one here would
+        // end it: the entries stay in config.json with nothing left that reads them.
+        File.WriteAllText(configStore.ConfigPath, "{ this is not json");
+        var viewModel = CreateViewModel();
+
+        viewModel.OpenPromptsCommand.Execute(null);
+
+        Directory.Exists(PromptDirectory).ShouldBeFalse();
+        viewModel.IsWarning.ShouldBeTrue();
+    }
+
+    [AvaloniaFact]
+    public void A_repaired_config_gets_its_prompts_on_the_next_reload()
+    {
+        File.WriteAllText(configStore.ConfigPath, "{ this is not json");
+        var viewModel = CreateViewModel();
+        Directory.Exists(PromptDirectory).ShouldBeFalse();
+        viewModel.PrebuiltCommands.ShouldBeEmpty();
+
+        // Repaired, and the reload button pressed - which is what the warning tells you to do.
+        AnotherWindowWrites(c => c.SttMode = SttMode.Batch);
+        viewModel.ReloadConfigCommand.Execute(null);
+
+        viewModel.PrebuiltCommands.Select(c => c.Label).ShouldBe(["Grammar", "Prompt"]);
     }
 
     [AvaloniaFact]

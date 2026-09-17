@@ -53,7 +53,7 @@ public static class ConfigMigration
         // nothing replaces them - see PromptSeeding, and the note in AGENTS.md.
         if (config.PrebuiltCommands is { Count: > 0 } prebuilt && LegacyPrebuiltCommands.Contains(Fingerprint(prebuilt)))
         {
-            config.PrebuiltCommands = [.. MumblrConfig.ShippedPrompts];
+            config.PrebuiltCommands = MumblrConfig.FreshPrompts();
             changed = true;
         }
 

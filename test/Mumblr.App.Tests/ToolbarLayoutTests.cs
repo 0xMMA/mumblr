@@ -76,10 +76,24 @@ public sealed class ToolbarLayoutTests : IDisposable
 
         var tallest = Items(toolbar).Max(item => item.Bounds.Height);
 
-        // One line means the panel is no taller than its tallest item plus the shared margin.
-        // There is roughly 140px of slack at this width, which is the headroom for font and DPI
-        // differences between here and Windows.
+        // One line means the panel is no taller than its tallest item plus the shared margin. The
+        // slack at this width is the headroom for font and DPI differences between here and
+        // Windows; the test below measures what is actually left.
         toolbar.Bounds.Height.ShouldBeLessThanOrEqualTo(tallest + 8);
+    }
+
+    [AvaloniaFact]
+    public void The_default_width_has_room_for_one_more_control()
+    {
+        // The number the comment above used to quote, measured instead of remembered: every button
+        // added to the toolbar spends some of it, and the point at which it runs out is a wrap,
+        // not a clip - but it should not happen at the default size.
+        var toolbar = Toolbar(Show());
+        var items = Items(toolbar).ToList();
+
+        var used = items.Max(item => item.Bounds.Right);
+
+        (toolbar.Bounds.Width - used).ShouldBeGreaterThan(40);
     }
 
     [AvaloniaFact]

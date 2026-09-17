@@ -25,8 +25,8 @@ stable build only to stable ones, so the download you install is the one you sta
 - **Your existing buttons move across on the first run.** Whatever `prebuiltCommands` held becomes
   files, text unchanged, in the order you had them - a prompt you edited arrives exactly as you
   left it. The key then leaves `config.json`, so there is one place to edit a prompt instead of
-  two. Deleting a file keeps it deleted; deleting the whole directory is how you ask for the
-  shipped two back.
+  two. Deleting a file keeps it deleted; deleting the whole directory, or pressing **Prompts** when
+  there is none, is how you ask for the shipped two back.
 - The directory is the only source, and it is deliberately not configurable: a prompt is handed to
   `claude -p` with permission to read and edit your dictation, so a prompt folder inside a
   repository would let a repo you cloned run its own instructions over what you say.

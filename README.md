@@ -174,8 +174,8 @@ The directory is the only place prompts come from, and it is not configurable. A
 repository would let a repo you cloned run its own instructions over what you dictate.
 
 Deleting a file keeps it deleted. Deleting the whole directory is how you ask for the shipped two
-back - that one takes a restart, unlike every other change, because the directory is also what
-tells mumblr the prompts have never been written.
+back: press **Prompts** afterwards, or restart. The directory is also what tells mumblr the prompts
+have already been written, which is why that one gesture needs a second step and no other does.
 
 ### Preview builds
 

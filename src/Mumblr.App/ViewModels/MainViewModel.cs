@@ -84,6 +84,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     /// <summary>Why the prompt files could not be written on start, if they could not.</summary>
     private string? promptSeedingFailure;
 
+    /// <summary>Whether seeding on start left a warning on the status line that has to survive.</summary>
+    private bool promptSeedingWarning;
+
     /// <summary>
     /// The prompt files that held no prompt the last time they were read. Kept so the window says
     /// so when that changes and not on every event: the reload runs on every config change and at
@@ -95,8 +98,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     /// The config file exists but could not be parsed, so this session is running on defaults. Said
     /// out loud on start: the next setting change writes those defaults over the file, and a typo
     /// that costs every keyterm and every prompt should not do so in silence.
+    ///
+    /// Not readonly: the reload button is how the file gets repaired without a restart, and what
+    /// this guards - the prompt seeding - has to become possible again when it is.
     /// </summary>
-    private readonly bool configBroken;
+    private bool configBroken;
 
     private IDisposable? configWatcher;
     private IDisposable? promptWatcher;
@@ -438,18 +444,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         // Never over a config that did not parse: this session is running on defaults then, and
         // saving them back would replace the user's file - with their prompts still inside it -
         // before the warning below has even been drawn.
-        if (!configBroken)
-        {
-            try
-            {
-                if (PromptSeeding.SeedIfMissing(prompts, config))
-                    TrySaveConfig();
-            }
-            catch (Exception ex)
-            {
-                promptSeedingFailure = $"Could not write the prompt files: {ex.Message}";
-            }
-        }
+        SeedPrompts();
+        promptSeedingWarning = IsWarning;
 
         RefreshDevices();
         RefreshPrebuiltCommands();
@@ -466,6 +462,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             // Said after RefreshDevices rather than where it happened: a missing microphone is
             // loud, and it used to warn over the one notice that the migration did not run.
             Warn(promptSeedingFailure);
+        else if (promptSeedingWarning && IsWarning)
+            // SeedPrompts already said something worth keeping - there is nothing to add.
+            Warn(StatusMessage);
         else if (!HasApiKey)
             Warn($"No API key. Set {ApiKeyProvider.PrimaryVariable} (or {ApiKeyProvider.FallbackVariable}) and restart.");
         else if (!IsWarning)
@@ -480,10 +479,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             Path.GetFileName(configStore.ConfigPath),
             () => Dispatcher.UIThread.Post(OnConfigFileChanged));
 
-        promptWatcher = fileWatcherFactory(
-            prompts.Directory,
-            "*.md",
-            () => Dispatcher.UIThread.Post(OnPromptsChanged));
+        ArmPromptWatcher();
 
         _ = CheckForUpdatesAsync();
     }
@@ -1369,7 +1365,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             if (!configStore.ChangedOnDisk())
                 configStore.Save(config);
 
-            Process.Start(new ProcessStartInfo(configStore.ConfigPath) { UseShellExecute = true });
+            using var _ = Process.Start(new ProcessStartInfo(configStore.ConfigPath) { UseShellExecute = true });
         }
         catch (Exception ex)
         {
@@ -1378,26 +1374,86 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
-    /// Rebuilds the command buttons from the prompt files. Does nothing at all when they have not
-    /// changed: one save raises several events, and replacing the collection would flicker the
-    /// buttons and overwrite the status line each time.
-    /// </summary>
-    /// <summary>
     /// Opens the prompt folder in the file manager. A feature whose whole point is "these are your
     /// files" needs a way to reach them that is not a path in a README.
+    ///
+    /// Seeds first rather than creating the folder. The folder existing is what says the migration
+    /// has run, so creating an empty one here would end it: the entries would stay in config.json
+    /// with nothing left that reads them. Clicking this while the prompts are missing is the
+    /// recovery, not the thing that cancels it.
     /// </summary>
     [RelayCommand]
     private void OpenPrompts()
     {
+        if (!SeedPrompts())
+            return;
+
         try
         {
-            Directory.CreateDirectory(prompts.Directory);
-            Process.Start(new ProcessStartInfo(prompts.Directory) { UseShellExecute = true });
+            using var _ = Process.Start(new ProcessStartInfo(prompts.Directory) { UseShellExecute = true });
         }
         catch (Exception ex)
         {
             Warn($"Could not open the prompts folder: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// Writes the prompt files if they are not there yet. False when the folder is not there and
+    /// must not be created - which is only ever because this session is running on a config that
+    /// did not parse, and seeding it would save those defaults over the user's file.
+    /// </summary>
+    private bool SeedPrompts()
+    {
+        if (Directory.Exists(prompts.Directory))
+            return true;
+
+        // Whatever happens below, the folder was not there when the watcher was built, so the
+        // watcher gave up on a directory that does not exist and has been dead since.
+        var rearm = true;
+
+        if (configBroken)
+        {
+            Warn("config.json could not be read, so the prompt files are not written yet. Fix it, then reload.");
+            return false;
+        }
+
+        try
+        {
+            if (PromptSeeding.SeedIfMissing(prompts, config))
+                TrySaveConfig();
+
+            if (rearm)
+                ArmPromptWatcher();
+
+            RefreshPrebuiltCommands();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            promptSeedingFailure = $"Could not write the prompt files: {ex.Message}";
+            Warn(promptSeedingFailure);
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Rebuilds the command buttons from the prompt files. Does nothing at all when they have not
+    /// changed: one save raises several events, and replacing the collection would flicker the
+    /// buttons for no reason.
+    /// </summary>
+    /// <summary>
+    /// Points a watcher at the prompt folder, replacing any earlier one. A FileSystemWatcher over
+    /// a directory that does not exist watches nothing and never recovers, so the one that was
+    /// built before the folder existed has to be replaced once it does.
+    /// </summary>
+    private void ArmPromptWatcher()
+    {
+        promptWatcher?.Dispose();
+        promptWatcher = fileWatcherFactory(
+            prompts.Directory,
+            "*.md",
+            () => Dispatcher.UIThread.Post(OnPromptsChanged));
     }
 
     private void RefreshPrebuiltCommands()
@@ -1420,14 +1476,14 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         // A file that holds no prompt costs its button and nothing else, but it costs it silently -
         // and a button that is simply not there is indistinguishable from one never written. Said
         // when the set changes, not while it stays the same: this runs at the end of every take.
-        var skipped = loaded.Skipped.ToArray();
+        var skipped = loaded.Skipped.Select(s => $"{Path.GetFileName(s.Path)} {s.Reason}").ToArray();
         var changedSet = !skipped.SequenceEqual(skippedPrompts, StringComparer.Ordinal);
         skippedPrompts = skipped;
 
         if (skipped.Length > 0 && changedSet)
             Warn(skipped.Length == 1
-                ? $"{Path.GetFileName(skipped[0])} holds no prompt and has no button."
-                : $"{skipped.Length} prompt files hold no prompt and have no buttons.");
+                ? $"{skipped[0]} and has no button."
+                : $"{skipped.Length} prompt files have no button: {string.Join(", ", skipped)}.");
     }
 
     /// <summary>
@@ -1481,7 +1537,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         configReloadPending = false;
 
         if (loaded.Broken)
+        {
+            configBroken = true;
             return false;
+        }
+
+        configBroken = false;
 
         config = loaded.Config;
         postProcessor = new TextPostProcessor(config.Dictionary);
@@ -1498,6 +1559,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         ApplyHotkeys();
         RefreshDevices();
+
+        // The seeding is retried here, not only on start: a config that did not parse skips it,
+        // and the reload button is how that config gets repaired without a restart.
+        SeedPrompts();
+
         RefreshPrebuiltCommands();
         suppressConfigSave = false;
 

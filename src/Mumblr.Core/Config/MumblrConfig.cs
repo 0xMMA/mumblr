@@ -78,6 +78,15 @@ public sealed class MumblrConfig
         },
     };
 
+    /// <summary>
+    /// A copy of <see cref="ShippedPrompts"/> that a caller may edit. The static holds one instance
+    /// of each command for the life of the process - an <c>IReadOnlyList</c> is only read-only in
+    /// its shape, and handing the same objects out would let anyone who edits one rewrite the
+    /// shipped default for everybody, tests included.
+    /// </summary>
+    public static List<PrebuiltCommand> FreshPrompts() =>
+        [.. ShippedPrompts.Select(prompt => new PrebuiltCommand { Label = prompt.Label, Text = prompt.Text })];
+
     /// <summary>Deterministic client-side replacements applied to committed transcript text.</summary>
     public Dictionary<string, string> Dictionary { get; set; } = new(StringComparer.OrdinalIgnoreCase)
     {
