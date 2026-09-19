@@ -282,6 +282,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private bool hasApiKey;
 
+    [ObservableProperty]
+    private UpdateActivity updateActivity;
+
+    [ObservableProperty]
+    private int updateProgress;
+
     public bool HasUpdate => UpdateVersion.Length > 0;
 
     /// <summary>
@@ -314,11 +320,29 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private static bool IsAutoLanguage(string? code) =>
         string.IsNullOrWhiteSpace(code) || string.Equals(code.Trim(), AutoLanguage, StringComparison.OrdinalIgnoreCase);
 
-    public string VersionButtonText => HasUpdate ? $"update to {UpdateVersion} and restart" : $"v{Version}";
+    /// <summary>
+    /// The button is the only place a long update shows itself. Checking downloads the package as
+    /// part of answering, and a self-contained build takes minutes of it on a slow line - during
+    /// which this used to read the running version, so the only thing to do with the button was
+    /// press it again.
+    /// </summary>
+    public string VersionButtonText => UpdateActivity switch
+    {
+        UpdateActivity.Checking => "checking...",
+        UpdateActivity.Downloading => $"downloading {UpdateProgress}%",
+        UpdateActivity.Installing => "restarting...",
+        _ => HasUpdate ? $"update to {UpdateVersion} and restart" : $"v{Version}",
+    };
 
-    public string VersionButtonTooltip => HasUpdate
-        ? $"Install {UpdateVersion} and restart mumblr"
-        : "Check for updates";
+    public string VersionButtonTooltip => UpdateActivity switch
+    {
+        UpdateActivity.Checking => "Asking the release feed what is there",
+        UpdateActivity.Downloading => "Downloading the update - it installs when you press the button afterwards",
+        UpdateActivity.Installing => "Applying the update and restarting mumblr",
+        _ => HasUpdate
+            ? $"Install {UpdateVersion} and restart mumblr"
+            : "Check for updates",
+    };
 
     public bool HasPreview => PreviewText.Length > 0;
 
@@ -545,16 +569,48 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     private async Task<UpdateService.UpdateCheck> CheckForUpdatesAsync()
     {
-        var outcome = await updates.CheckAsync();
-        if (outcome == UpdateService.UpdateCheck.Available && updates.AvailableVersion is { } version)
-            UpdateVersion = version;
+        UpdateActivity = UpdateActivity.Checking;
+        UpdateProgress = 0;
 
-        return outcome;
+        try
+        {
+            var outcome = await updates.CheckAsync(ReportDownloadProgress);
+            if (outcome == UpdateService.UpdateCheck.Available && updates.AvailableVersion is { } version)
+                UpdateVersion = version;
+
+            return outcome;
+        }
+        finally
+        {
+            UpdateActivity = UpdateActivity.None;
+        }
     }
+
+    /// <summary>
+    /// Raised from whichever thread is doing the downloading. Ignored once the run is over, so a
+    /// callback still in flight cannot leave the button reading "downloading 100%" forever.
+    /// </summary>
+    private void ReportDownloadProgress(int percent) => Dispatcher.UIThread.Post(() =>
+    {
+        if (UpdateActivity is not (UpdateActivity.Checking or UpdateActivity.Downloading))
+            return;
+
+        UpdateActivity = UpdateActivity.Downloading;
+        UpdateProgress = Math.Clamp(percent, 0, 100);
+    });
 
     partial void OnUpdateVersionChanged(string value)
     {
         OnPropertyChanged(nameof(HasUpdate));
+        RefreshVersionButton();
+    }
+
+    partial void OnUpdateActivityChanged(UpdateActivity value) => RefreshVersionButton();
+
+    partial void OnUpdateProgressChanged(int value) => RefreshVersionButton();
+
+    private void RefreshVersionButton()
+    {
         OnPropertyChanged(nameof(VersionButtonText));
         OnPropertyChanged(nameof(VersionButtonTooltip));
     }
@@ -567,6 +623,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private async Task UseVersionButtonAsync()
     {
+        // The command disables the button while it runs, but the install path below is synchronous
+        // and the restart takes a moment: a second press in there would flush and stop the capture
+        // all over again, underneath a process that is on its way out.
+        if (UpdateActivity != UpdateActivity.None)
+            return;
+
         if (HasUpdate)
         {
             // Restarting on top of a running command would abandon claude mid-edit.
@@ -576,6 +638,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 return;
             }
 
+            UpdateActivity = UpdateActivity.Installing;
             InstallUpdate();
             return;
         }
@@ -585,7 +648,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         switch (await CheckForUpdatesAsync())
         {
             case UpdateService.UpdateCheck.Available:
-                Inform($"Update {UpdateVersion} available.");
+                Inform($"Update {UpdateVersion} downloaded - press the button again to install it and restart.");
                 break;
             case UpdateService.UpdateCheck.UpToDate:
                 Inform($"v{Version} is the latest build.");
@@ -623,7 +686,15 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     {
         Flush();
         capture.Stop();
-        updates.ApplyAndRestart();
+
+        if (updates.ApplyAndRestart())
+            return;
+
+        // Nothing downloaded to apply: a check that failed since dropped what this was holding.
+        // Returning quietly here is exactly the button that does nothing when pressed.
+        UpdateActivity = UpdateActivity.None;
+        UpdateVersion = string.Empty;
+        Warn("The downloaded update is gone. Check for updates again.");
     }
 
     /// <summary>

@@ -827,6 +827,96 @@ public sealed class MainViewModelTests : IDisposable
     }
 
     [AvaloniaFact]
+    public async Task The_version_button_says_that_it_is_checking()
+    {
+        // The check downloads the package as part of answering, and for a self-contained build
+        // that is minutes on a slow line. The button used to read the running version throughout,
+        // so the only thing to do with it was press it again.
+        var viewModel = CreateViewModel();
+        var gate = new TaskCompletionSource();
+        updates.Gate = gate;
+
+        var pressed = viewModel.UseVersionButtonCommand.ExecuteAsync(null);
+        await PumpAsync();
+
+        viewModel.VersionButtonText.ShouldBe("checking...");
+
+        gate.SetResult();
+        await pressed;
+        await PumpAsync();
+
+        viewModel.VersionButtonText.ShouldBe($"v{viewModel.Version}");
+    }
+
+    [AvaloniaFact]
+    public async Task The_version_button_counts_the_download_up()
+    {
+        var viewModel = CreateViewModel();
+        var gate = new TaskCompletionSource();
+        updates.Gate = gate;
+        updates.DownloadProgress = [7, 42];
+        updates.Outcome = UpdateService.UpdateCheck.Available;
+        updates.AvailableVersion = "0.9.9";
+
+        var pressed = viewModel.UseVersionButtonCommand.ExecuteAsync(null);
+        await PumpAsync();
+
+        viewModel.VersionButtonText.ShouldBe("downloading 42%");
+
+        gate.SetResult();
+        await pressed;
+        await PumpAsync();
+
+        viewModel.VersionButtonText.ShouldBe("update to 0.9.9 and restart");
+        viewModel.StatusMessage.ShouldContain("press the button again");
+    }
+
+    [AvaloniaFact]
+    public async Task Pressing_the_version_button_again_while_it_works_does_nothing()
+    {
+        var viewModel = CreateViewModel();
+        await PumpAsync();
+
+        // Starting up checks once by itself; this is about what the button adds on top of that.
+        var before = updates.Checks;
+
+        var gate = new TaskCompletionSource();
+        updates.Gate = gate;
+
+        var pressed = viewModel.UseVersionButtonCommand.ExecuteAsync(null);
+        await PumpAsync();
+
+        await viewModel.UseVersionButtonCommand.ExecuteAsync(null);
+        await PumpAsync();
+
+        updates.Checks.ShouldBe(before + 1);
+
+        gate.SetResult();
+        await pressed;
+    }
+
+    [AvaloniaFact]
+    public async Task An_update_that_is_no_longer_there_says_so_instead_of_nothing()
+    {
+        // The service refuses when it has nothing downloaded - a check that failed since dropped
+        // it. Returning quietly there is exactly the button that does nothing when pressed.
+        var viewModel = CreateViewModel();
+        updates.Outcome = UpdateService.UpdateCheck.Available;
+        updates.AvailableVersion = "0.9.9";
+        await viewModel.UseVersionButtonCommand.ExecuteAsync(null);
+        await PumpAsync();
+
+        updates.ApplyResult = false;
+        await viewModel.UseVersionButtonCommand.ExecuteAsync(null);
+        await PumpAsync();
+
+        updates.ApplyAttempts.ShouldBe(1);
+        viewModel.IsWarning.ShouldBeTrue();
+        viewModel.StatusMessage.ShouldContain("Check for updates again");
+        viewModel.VersionButtonText.ShouldBe($"v{viewModel.Version}");
+    }
+
+    [AvaloniaFact]
     public async Task An_available_update_turns_the_version_button_into_an_install()
     {
         var viewModel = CreateViewModel();

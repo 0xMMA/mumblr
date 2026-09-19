@@ -247,14 +247,36 @@ public sealed class FakeUpdateService : IUpdateService
     public string? AvailableVersion { get; set; }
     public bool Applied { get; private set; }
     public int Checks { get; private set; }
+    public int ApplyAttempts { get; private set; }
 
-    public Task<UpdateService.UpdateCheck> CheckAsync()
+    /// <summary>False stands for a service holding nothing to apply - a check that failed since.</summary>
+    public bool ApplyResult { get; set; } = true;
+
+    /// <summary>Percentages to report before answering, the way the real download does.</summary>
+    public int[] DownloadProgress { get; set; } = [];
+
+    /// <summary>Held open so a test can look at the window while the check is still running.</summary>
+    public TaskCompletionSource? Gate { get; set; }
+
+    public async Task<UpdateService.UpdateCheck> CheckAsync(Action<int>? downloadProgress = null)
     {
         Checks++;
-        return Task.FromResult(Outcome);
+
+        foreach (var percent in DownloadProgress)
+            downloadProgress?.Invoke(percent);
+
+        if (Gate is not null)
+            await Gate.Task;
+
+        return Outcome;
     }
 
-    public void ApplyAndRestart() => Applied = true;
+    public bool ApplyAndRestart()
+    {
+        ApplyAttempts++;
+        Applied = ApplyResult;
+        return ApplyResult;
+    }
 }
 
 public sealed class FakeClaudeRunner : IClaudeCommandRunner

@@ -16,6 +16,14 @@ stable build only to stable ones, so the download you install is the one you sta
 
 ### Changed in 0.3.0
 
+- **The version button says what it is doing.** Checking for an update downloads it as part of
+  answering, and for a build this size that is the long part - minutes on a slow line. The button
+  read the running version throughout, so the only thing to do with it was press it again and
+  wonder why nothing happened. It now reads "checking...", then counts the download up, then
+  offers to install and restart. A press while it is working is ignored rather than starting a
+  second one, and an update that has gone missing since it was downloaded says so instead of
+  answering with nothing at all.
+
 - **The command buttons are your files now.** Every markdown file in `%APPDATA%\mumblr\prompts`
   is a button above the command log. Add one, edit one, delete one - the buttons follow without a
   restart, and the file is plain text you own rather than a string inside `config.json`. The new

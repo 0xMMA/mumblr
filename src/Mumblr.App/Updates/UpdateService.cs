@@ -17,9 +17,14 @@ public interface IUpdateService
 {
     string? AvailableVersion { get; }
 
-    Task<UpdateService.UpdateCheck> CheckAsync();
+    /// <param name="downloadProgress">
+    /// Percent complete, raised from a worker thread while the package comes down. The check does
+    /// the downloading too, so without this the caller cannot tell a long answer from a hung one.
+    /// </param>
+    Task<UpdateService.UpdateCheck> CheckAsync(Action<int>? downloadProgress = null);
 
-    void ApplyAndRestart();
+    /// <summary>False when there is nothing downloaded to apply, so the caller can say so.</summary>
+    bool ApplyAndRestart();
 }
 
 public sealed class UpdateService : IUpdateService
@@ -61,7 +66,7 @@ public sealed class UpdateService : IUpdateService
     public bool HasUpdate => pending is not null;
 
     /// <summary>Looks for a newer release and downloads it, and says what actually happened.</summary>
-    public async Task<UpdateCheck> CheckAsync()
+    public async Task<UpdateCheck> CheckAsync(Action<int>? downloadProgress = null)
     {
         try
         {
@@ -92,7 +97,7 @@ public sealed class UpdateService : IUpdateService
                 return any ? UpdateCheck.UpToDate : UpdateCheck.NoReleases;
             }
 
-            await manager.DownloadUpdatesAsync(update).ConfigureAwait(false);
+            await manager.DownloadUpdatesAsync(update, downloadProgress).ConfigureAwait(false);
 
             pending = update;
             AvailableVersion = update.TargetFullRelease.Version.ToString();
@@ -118,13 +123,18 @@ public sealed class UpdateService : IUpdateService
         }
     }
 
-    /// <summary>Applies the downloaded update and restarts. Only call after the buffer was flushed.</summary>
-    public void ApplyAndRestart()
+    /// <summary>
+    /// Applies the downloaded update and restarts. Only call after the buffer was flushed. False
+    /// when there is nothing to apply - a check that failed since dropped the manager, and
+    /// returning quietly there is indistinguishable from a button that does nothing.
+    /// </summary>
+    public bool ApplyAndRestart()
     {
         if (manager is null || pending is null)
-            return;
+            return false;
 
         manager.ApplyUpdatesAndRestart(pending);
+        return true;
     }
 
     /// <summary>
