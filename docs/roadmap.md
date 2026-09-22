@@ -6,11 +6,13 @@ Written 2026-09-17, after hardening. Four steps in order. Each one ships a relea
 channel routing, then `v0.2.2`. The releases page now reads the way it was meant to - 0.2.2 as the
 latest, the beta beside it as a pre-release, each carrying its own feed.
 
-Step 4 ships as `v0.3.0-beta.1` first, and `v0.3.0` waits for someone to have run it. It moves the
-prompts out of `config.json` and into files, which is a migration with exactly one attempt at it,
-and it took eight rounds of review to stop losing them - six of those rounds found a hole that the
-round before had opened. The preview channel exists for a change like this one; skipping it here
-would have made step 2 pointless.
+Step 4 is released. It went out as `v0.3.0-beta.1` first, because it moves the prompts out of
+`config.json` and into files and a migration gets exactly one attempt at somebody's data - eight
+rounds of review, six of which found a hole the round before had opened. `beta.2` added the update
+button's missing feedback, and `v0.3.0` followed once the preview had been run. The preview channel
+exists for a change like this one; skipping it would have made step 2 pointless.
+
+All four steps are done.
 
 Step 2 closed differently than planned below: instead of a throwaway tag, the first run through the
 channel routing was the real beta of 0.2.2. It proves the same plumbing and leaves nothing to
