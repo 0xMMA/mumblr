@@ -139,6 +139,9 @@ public sealed class HotkeyConfig
     /// The one-click kill switch. Off means nothing is registered and the keyboard hook is gone,
     /// so no chord from another window can start a recording. Persisted: whoever turned it off
     /// had a reason that outlives the process.
+    ///
+    /// True here because a file without the key predates the switch and had its chords on. A first
+    /// run, or a file that cannot be read, starts off - see <see cref="ConfigStore"/>.
     /// </summary>
     public bool Enabled { get; set; } = true;
 
@@ -228,8 +231,10 @@ public sealed class ClaudeConfig
         term stays in the language the author used it in. Add nothing the command did not ask
         for - no notes, no report of your own in the file.
 
-        Summarize in one English sentence what changed, not what was asked: "Merged the last two
-        paragraphs and dropped the false starts."
+        Summarize in one sentence what changed, not what was asked, in the language the dictation
+        was in before your edit - whatever language the command is in, and even when it asked for
+        a translation. For English dictation: "Merged the last two paragraphs and dropped the
+        false starts."
 
         ALWAYS edit exactly the file whose path is in the user message, and no other file in the
         directory.

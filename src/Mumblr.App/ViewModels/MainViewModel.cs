@@ -424,6 +424,15 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     public string HotkeySwitchText => HotkeysEnabled ? "hotkeys: on" : "hotkeys: off";
 
+    /// <summary>Names the chords even while they are off - a fresh install starts there, and nothing else in the window says what they are.</summary>
+    public string HotkeySwitchTooltip =>
+        $"Global hotkeys: {ChordList}. They work while another window has focus. " +
+        "Off: no key chord from any other window can start a recording. The buttons keep working.";
+
+    private string ChordList =>
+        $"{config.Hotkeys.ToggleRecording} record  ·  hold {config.Hotkeys.CommandHoldKey} command  ·  " +
+        $"{config.Hotkeys.Copy} copy  ·  {config.Hotkeys.RevertCommand} revert";
+
     /// <summary>Unhooking under a live hold would swallow its key-up; see <see cref="CommandStarting"/>.</summary>
     public bool CanToggleHotkeys => !IsCommanding && !commandStarting;
 
@@ -1784,6 +1793,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     private void ApplyHotkeys()
     {
+        OnPropertyChanged(nameof(HotkeySwitchTooltip));
+
         if (!config.Hotkeys.Enabled)
         {
             hotkeysActive = false;
@@ -1802,8 +1813,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         RefreshButtonTooltips();
 
         HotkeyHint = started
-            ? $"{config.Hotkeys.ToggleRecording} record  ·  hold {config.Hotkeys.CommandHoldKey} command  ·  " +
-              $"{config.Hotkeys.Copy} copy  ·  {config.Hotkeys.RevertCommand} revert"
+            ? ChordList
             : hotkeys.IsSupported
                 ? "hotkeys unavailable"
                 : "Global hotkeys need Windows - use the buttons.";

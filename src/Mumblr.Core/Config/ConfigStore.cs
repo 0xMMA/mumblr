@@ -4,7 +4,7 @@ using System.Text.Json.Nodes;
 namespace Mumblr.Core.Config;
 
 /// <summary>What a load produced: the config to work with, and whether the file was readable.</summary>
-/// <param name="Config">The parsed file, or a fresh default when it could not be parsed.</param>
+/// <param name="Config">The parsed file, or a first-run default when it could not be parsed.</param>
 /// <param name="Broken">True when the file exists but could not be read or parsed.</param>
 public sealed record ConfigLoad(MumblrConfig Config, bool Broken);
 
@@ -48,7 +48,7 @@ public sealed class ConfigStore
     {
         if (!File.Exists(ConfigPath))
         {
-            var fresh = new MumblrConfig();
+            var fresh = Unknown();
             TrySave(fresh);
             return new ConfigLoad(fresh, Broken: false);
         }
@@ -70,8 +70,21 @@ public sealed class ConfigStore
             // A broken config must never stop the app from recording, so a caller that has nothing
             // yet - the constructor - gets defaults. It is left on disk exactly as it is, and the
             // caller is told, because silently replacing it is how a typo costs every setting.
-            return new ConfigLoad(new MumblrConfig(), Broken: true);
+            return new ConfigLoad(Unknown(), Broken: true);
         }
+    }
+
+    /// <summary>
+    /// A config nobody has chosen anything in - a first run, or a file that could not be read. The
+    /// global chords start off: one that collides with a game or another tool starts a recording
+    /// nobody wanted, and a file that says off must not come back on because of a stray comma.
+    /// A file that merely lacks the key is different - it predates the switch and keeps its chords.
+    /// </summary>
+    private static MumblrConfig Unknown()
+    {
+        var config = new MumblrConfig();
+        config.Hotkeys.Enabled = false;
+        return config;
     }
 
     /// <summary>
@@ -84,7 +97,7 @@ public sealed class ConfigStore
     {
         var node = JsonNode.Parse(json);
         StripNulls(node);
-        return node.Deserialize<MumblrConfig>(Options) ?? new MumblrConfig();
+        return node.Deserialize<MumblrConfig>(Options) ?? Unknown();
     }
 
     private static void StripNulls(JsonNode? node)

@@ -33,6 +33,8 @@ public sealed class MainWindowTests : IDisposable
         configStore = new ConfigStore(Path.Combine(workspace, "config.json"));
         var config = configStore.Load();
         config.MicrophoneDeviceId = "dev-1";
+        // A first run writes the chords off; these tests press them.
+        config.Hotkeys.Enabled = true;
         configStore.Save(config);
     }
 

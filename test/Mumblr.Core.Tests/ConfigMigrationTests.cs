@@ -152,6 +152,7 @@ public sealed class ConfigMigrationTests : IDisposable
     [InlineData("261ddd57fb11286ba823ffd222bcaa55f7ba577de6241521844539e257ca1718", ShippedDefaults.Header015)]
     [InlineData("f86effd995a7d95dffc8645418d589bc0e1ff0e72add2990060d8fa65ff0548a", ShippedDefaults.Header016)]
     [InlineData("84a8df986008a764277ff623513586392dd0b0967753594b9d9b15f247bac245", ShippedDefaults.HeaderUnreleased)]
+    [InlineData("bb4405600efa4e384e6ca0a75d26f6a3383a51ae26b74a6b5a171bf3cf59b878", ShippedDefaults.Header020)]
     public void Every_legacy_header_fingerprint_matches_the_text_it_stands_for(string fingerprint, string text) =>
         ConfigMigration.Fingerprint(text).ShouldBe(fingerprint);
 

@@ -36,6 +36,8 @@ public sealed class MainViewModelTests : IDisposable
         config = configStore.Load();
         config.MicrophoneDeviceId = "dev-1";
         config.MicrophoneDeviceName = "Yeti";
+        // A first run writes the chords off; this suite drives them.
+        config.Hotkeys.Enabled = true;
         configStore.Save(config);
     }
 
@@ -1143,6 +1145,22 @@ public sealed class MainViewModelTests : IDisposable
 
         hotkeys.Started.ShouldNotBeNull();
         viewModel.IsRecording.ShouldBeTrue();
+    }
+
+    [AvaloniaFact]
+    public async Task A_first_run_registers_no_chords_and_says_so()
+    {
+        File.Delete(configStore.ConfigPath);
+        var viewModel = CreateViewModel();
+
+        hotkeys.Trigger(HotkeyAction.ToggleRecording);
+        await PumpAsync();
+
+        hotkeys.Started.ShouldBeNull();
+        viewModel.IsRecording.ShouldBeFalse();
+        viewModel.HotkeyHint.ShouldBe("hotkeys off");
+        // The one place that says what turning them on would give you.
+        viewModel.HotkeySwitchTooltip.ShouldContain("Ctrl+Alt+Space record");
     }
 
     [AvaloniaFact]

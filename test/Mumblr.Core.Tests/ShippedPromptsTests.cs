@@ -44,4 +44,18 @@ public class ShippedPromptsTests
         header.ShouldNotContain("german", Case.Insensitive);
         header.ShouldNotContain("deutsch", Case.Insensitive);
     }
+
+    [Fact]
+    public void The_summary_follows_the_dictation_rather_than_the_window()
+    {
+        // The summary describes the author's text and sits beside it, so it is content about
+        // content (#4): German dictation gets a German line in the log. Joined, because the raw
+        // literal breaks lines wherever it likes.
+        var header = string.Join(' ', ClaudeConfig.DefaultHeaderPrompt.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
+        header.ShouldContain("in the language the dictation was in before your edit");
+        // The shipped buttons send English commands; the command's language must not decide it.
+        header.ShouldContain("whatever language the command is in");
+        header.ShouldNotContain("English sentence");
+    }
 }

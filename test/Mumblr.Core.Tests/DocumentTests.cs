@@ -183,6 +183,25 @@ public class ConfigStoreTests : IDisposable
     }
 
     [Fact]
+    public void A_first_run_starts_with_the_global_hotkeys_off()
+    {
+        new ConfigStore(path).Load().Hotkeys.Enabled.ShouldBeFalse();
+
+        // Written that way, so the second start does not turn them on behind the user's back.
+        new ConfigStore(path).Load().Hotkeys.Enabled.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void A_config_from_before_the_switch_keeps_its_hotkeys()
+    {
+        // 0.1.x wrote no "enabled" key, and its chords were live. An upgrade must not take them away.
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, """{"hotkeys":{"toggleRecording":"Ctrl+Alt+Space"}}""");
+
+        new ConfigStore(path).Load().Hotkeys.Enabled.ShouldBeTrue();
+    }
+
+    [Fact]
     public void Round_trips_every_configurable_field()
     {
         var store = new ConfigStore(path);
@@ -192,7 +211,9 @@ public class ConfigStoreTests : IDisposable
         config.Keyterms = ["Aspire"];
         config.Dictionary = new Dictionary<string, string> { ["clod"] = "Claude" };
         config.Hotkeys.ToggleRecording = "Ctrl+Shift+R";
-        config.Hotkeys.Enabled = false;
+        // A first load writes them off, so the round trip flips them on. That off survives a
+        // save is A_first_run_starts_with_the_global_hotkeys_off.
+        config.Hotkeys.Enabled = true;
         config.Stt.LanguageCode = "en";
         config.Stt.Languages = ["de", "en", "fr"];
         config.Claude.Model = "sonnet";
@@ -207,7 +228,7 @@ public class ConfigStoreTests : IDisposable
         reloaded.Keyterms.ShouldBe(["Aspire"]);
         reloaded.Dictionary["clod"].ShouldBe("Claude");
         reloaded.Hotkeys.ToggleRecording.ShouldBe("Ctrl+Shift+R");
-        reloaded.Hotkeys.Enabled.ShouldBeFalse();
+        reloaded.Hotkeys.Enabled.ShouldBeTrue();
         reloaded.Stt.LanguageCode.ShouldBe("en");
         reloaded.Stt.Languages.ShouldBe(["de", "en", "fr"]);
         reloaded.Claude.Model.ShouldBe("sonnet");
@@ -222,6 +243,16 @@ public class ConfigStoreTests : IDisposable
         File.WriteAllText(path, "{ this is not json");
 
         new ConfigStore(path).Load().Claude.Model.ShouldBe("opus");
+    }
+
+    [Fact]
+    public void A_broken_config_does_not_turn_the_hotkeys_back_on()
+    {
+        // The file may well say off; a stray comma must not register a keyboard hook it refused.
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, """{"hotkeys":{"enabled":false},}""");
+
+        new ConfigStore(path).Load().Hotkeys.Enabled.ShouldBeFalse();
     }
 
     public void Dispose()

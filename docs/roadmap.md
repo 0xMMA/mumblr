@@ -47,6 +47,12 @@ Two things went wrong on the way and are worth keeping:
 - **The issue round is #5 and #7.** #3 (abort a command), #4 (summary language) and #2 (micro-lock)
   wait.
 
+- **After 0.3.0 (2026-09-24):** #4 goes to the dictation's language - the summary is content about
+  content. #3 (abort) and #2 (micro-lock) stay deferred; for #2 the answer is that one focuses on
+  one thing at a time and interjects by stopping and starting, not by editing mid-take. #6 is
+  covered: 0.3.0-beta.2 was tested by hand on Windows. A fresh install starts with the global
+  hotkeys off.
+
 ## Assumptions
 
 - The Windows-only checks in #6 are covered in practice by heavy 0.2.0 use. The issue stays open as

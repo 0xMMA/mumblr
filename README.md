@@ -63,15 +63,16 @@ for the next recording and for spoken commands, and `stt.languages` in the confi
 offers. Client side there
 is a deterministic dictionary pass with no LLM involved (`clod code` -> `Claude Code`).
 
-**Channel 2 - commands.** Hold the command key, say what to change, let go. The clip goes through
-batch STT, and the resulting command plus the absolute file path go to your locally installed
-`claude -p`, which edits the file with its own Read/Edit tools. Typical commands: *delete the last
-sentence*, *replace X with Y*, *clean this up*, *turn this into a prompt*. Expect 15-30 s with Opus at
-high effort. Nothing from this channel ever lands in the content file - it goes to the command log
-panel, and every call is snapshotted so you can revert it. Revert is one step at a time; **Raw**
-puts the dictation back exactly as it was transcribed, whatever the commands did since, and is
-itself revertible. The raw file is read-only on disk between appends, so a command cannot edit
-it even though Claude has edit rights in the folder.
+**Channel 2 - commands.** Hold the command key (or the **Hold to edit** button), say what to change,
+let go. The clip goes through batch STT, and the resulting command plus the absolute file path go to
+your locally installed `claude -p`, which edits the file with its own Read/Edit tools. Typical
+commands: *delete the last sentence*, *replace X with Y*, *clean this up*, *turn this into a
+prompt*. Expect 15-30 s with Opus at high effort. Nothing from this channel ever lands in the
+content file - it goes to the command log panel with a one-line summary of what changed, written in
+the language you dictated in, and every call is snapshotted so you can revert it. Revert is one step
+at a time; **Raw** puts the dictation back exactly as it was transcribed, whatever the commands did
+since, and is itself revertible. The raw file is read-only on disk between appends, so a command
+cannot edit it even though Claude has edit rights in the folder.
 
 Commands you say word for word every day belong on a button instead. Every markdown file in
 `%APPDATA%\mumblr\prompts` becomes a button above the log; clicking one skips the microphone and
@@ -134,7 +135,7 @@ command waits for it to end rather than swapping the microphone underneath it.
 | `sttMode` | `Realtime` or `Batch` |
 | `keyterms` | Priority ordered. The head of the list survives the realtime limit of 50. A term carrying `< > { } [ ] \` or more than five words is dropped - ElevenLabs refuses the whole request over one bad term. Past 100 terms every request is billed as at least 20 seconds, and keyterms carry a 20% surcharge. |
 | `dictionary` | Literal replacements applied to committed text |
-| `hotkeys` | `enabled` (the status bar toggle), `toggleRecording`, `copy`, `revertCommand`, `commandHoldKey` |
+| `hotkeys` | `enabled` (the status bar toggle, off on a fresh install), `toggleRecording`, `copy`, `revertCommand`, `commandHoldKey` |
 | `claude` | `model`, `effort`, `headerPrompt`, allowed/disallowed tools, timeout |
 | `stt` | Model ids, `noVerbatim`, `languageCode` (what the LANG picker chose, unset for auto), `languages` (what it offers), base URL, VAD silence threshold, `keytermsEncoding` |
 
@@ -145,9 +146,10 @@ repository. Both come from the environment only, never from config and never fro
 Default hotkeys: `Ctrl+Alt+Space` record, hold `Ctrl+Alt+D` for a command, `Ctrl+Alt+C` copy,
 `Ctrl+Alt+Z` revert. They work while your IDE or terminal has focus - which is the point, and
 also the risk: a chord that collides with a game or another tool starts a recording you did not
-want. The **hotkeys** toggle in the status bar turns all of them off with one click, unregisters
-the chords and removes the keyboard hook; the buttons keep working. The state is saved, so it
-stays off until you turn it on again.
+want. So a fresh install starts with them **off**: the buttons do everything, and the **hotkeys**
+toggle in the status bar turns the chords on once you have decided you want them. The same toggle
+turns them off again with one click, unregistering the chords and removing the keyboard hook. The
+state is saved either way. An upgrade keeps whatever you had.
 
 ### Your prompts
 

@@ -45,7 +45,9 @@ only real Windows verification — push before you believe a Windows-specific cl
 tooltips, panel headings, units.
 
 Content the app carries keeps its own language: the keyterm list, a transcript, the dictation
-file. An instruction is English whoever reads it — a label for the user, a prebuilt command or
+file - and the summary Claude writes of an edit, which is about that content (#4). It keeps the
+dictation's language wherever it is shown, the status line included; the text mumblr wraps around
+it ("No change made.", "Command failed:") stays English. An instruction is English whoever reads it — a label for the user, a prebuilt command or
 the header prompt for Claude — and an instruction to Claude says that the dictation keeps its
 language, or an English "fix the grammar" comes back as a translation.
 

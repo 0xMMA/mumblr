@@ -14,6 +14,21 @@ The file names carry the version and the channel: `mumblr-0.2.2-win-Setup.exe` i
 `mumblr-0.2.2-beta.1-win-beta-Setup.exe` a preview. A preview only ever updates to previews and a
 stable build only to stable ones, so the download you install is the one you stay on.
 
+### Changed in 0.3.1
+
+- **The summary of a command speaks your language.** The one line in the command log that says
+  what an edit changed was always English, even over German dictation - a sentence about your text
+  in a language your text is not in. It now comes back in the language you dictated in, and stays
+  there after a translation. Your header prompt follows unless you have edited it; an edited one is
+  left alone.
+- **A fresh install starts with the global hotkeys off.** A chord that collides with a game or
+  another tool starts a recording nobody wanted, and nobody has chosen the chords on a first run.
+  The buttons do everything; the **hotkeys** toggle in the status bar turns the chords on once you
+  want them, and its tooltip names them. An existing install keeps whatever it had.
+- A `config.json` that cannot be read no longer turns the hotkeys back on. The session runs on
+  defaults until the file is fixed, and those defaults now keep the chords off - a stray comma in a
+  file that said off used to register the keyboard hook anyway.
+
 ### Changed in 0.3.0
 
 - **The version button says what it is doing.** Checking for an update downloads it as part of

@@ -132,7 +132,7 @@
                             Command="{Binding ToggleHotkeysCommand}"
                             Classes.on="{Binding HotkeysEnabled}"
                             Classes.off="{Binding !HotkeysEnabled}"
-                            ToolTip.Tip="Global hotkeys. Off: no key chord from any other window can start a recording. The buttons keep working."
+                            ToolTip.Tip="{Binding HotkeySwitchTooltip}"
                             FontSize="11" Padding="8,2" />
                     <Button Content="{Binding VersionButtonText}"
                             Command="{Binding UseVersionButtonCommand}"

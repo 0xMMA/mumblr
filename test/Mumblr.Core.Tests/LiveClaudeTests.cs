@@ -121,10 +121,48 @@ public class LiveClaudeTests
             Regex.IsMatch(edited, @"\bund\b").ShouldBeTrue();
             Regex.IsMatch(edited, @"\bdie\b").ShouldBeTrue();
             Regex.IsMatch(edited, @"\bthe\b").ShouldBeFalse();
+
+            // The summary describes a German text, so it is German too (#4) - although the
+            // command it answers is English.
+            SoundsGerman(result.Summary).ShouldBeTrue(result.Summary);
         }
         finally
         {
             directory.Delete(recursive: true);
         }
     }
+
+    [Fact]
+    public async Task A_translation_is_summarized_in_the_language_it_was_dictated_in()
+    {
+        Assert.SkipUnless(Environment.GetEnvironmentVariable(OptIn) is "1", $"{OptIn}=1 arms this test.");
+
+        var cancellation = TestContext.Current.CancellationToken;
+        var directory = Directory.CreateTempSubdirectory("mumblr-live-");
+        try
+        {
+            var file = Path.Combine(directory.FullName, "dictated.md");
+            await File.WriteAllTextAsync(file, GermanDictation + Environment.NewLine, cancellation);
+
+            var result = await new ClaudeCommandRunner(() => new ClaudeConfig())
+                .RunAsync("Übersetz das Ganze ins Englische.", file, cancellation);
+            var translated = await File.ReadAllTextAsync(file, cancellation);
+
+            output.WriteLine("OUT: " + translated.Trim());
+            output.WriteLine("SUMMARY: " + result.Summary);
+
+            result.Success.ShouldBeTrue(result.Summary);
+            Regex.IsMatch(translated, @"\bthe\b").ShouldBeTrue();
+            SoundsGerman(result.Summary).ShouldBeTrue(result.Summary);
+        }
+        finally
+        {
+            directory.Delete(recursive: true);
+        }
+    }
+
+    /// <summary>Weak on purpose: a German function word or an umlaut, and no English article.</summary>
+    private static bool SoundsGerman(string text) =>
+        Regex.IsMatch(text, @"\b(und|der|die|das|den|mit|im|ist)\b|[äöüß]", RegexOptions.IgnoreCase)
+        && !Regex.IsMatch(text, @"\bthe\b", RegexOptions.IgnoreCase);
 }

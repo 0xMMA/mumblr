@@ -26,6 +26,7 @@ public static class ConfigMigration
         "261ddd57fb11286ba823ffd222bcaa55f7ba577de6241521844539e257ca1718", // 0.1.5 "mumblr, a voice recorder, is calling you"
         "f86effd995a7d95dffc8645418d589bc0e1ff0e72add2990060d8fa65ff0548a", // 0.1.6 "The file holds dictated German"
         "84a8df986008a764277ff623513586392dd0b0967753594b9d9b15f247bac245", // unreleased, between 0.1.6 and 0.2.0: language rule without the translation clause
+        "bb4405600efa4e384e6ca0a75d26f6a3383a51ae26b74a6b5a171bf3cf59b878", // 0.2.0-0.3.0 summary pinned to English
     ];
 
     /// <summary>Prebuilt command lists that shipped before the current one.</summary>
