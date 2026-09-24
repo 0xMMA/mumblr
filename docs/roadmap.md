@@ -52,6 +52,7 @@ Two things went wrong on the way and are worth keeping:
   one thing at a time and interjects by stopping and starting, not by editing mid-take. #6 is
   covered: 0.3.0-beta.2 was tested by hand on Windows. A fresh install starts with the global
   hotkeys off.
+  The recap repository is private rather than archived - enough for now.
 
 ## Assumptions
 
