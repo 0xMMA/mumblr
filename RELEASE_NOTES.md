@@ -14,6 +14,16 @@ The file names carry the version and the channel: `mumblr-0.2.2-win-Setup.exe` i
 `mumblr-0.2.2-beta.1-win-beta-Setup.exe` a preview. A preview only ever updates to previews and a
 stable build only to stable ones, so the download you install is the one you stay on.
 
+### Changed in 0.3.2
+
+- **Commands know the text came through speech-to-text.** Claude was told that the spoken command
+  might be garbled, but not that the dictation itself was a transcript - so "change nothing about
+  the content" in Grammar could protect a misheard "Klod Kode" as if you had said it. A command now
+  restores what you said where the context makes it clear, in the part it was asked to change and
+  nowhere else: "delete the last sentence" still touches only the last sentence. Two spellings of
+  a name are left alone when they could be two people. Your header prompt follows unless you have
+  edited it.
+
 ### Changed in 0.3.1
 
 - **The summary of a command speaks your language.** The one line in the command log that says

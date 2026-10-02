@@ -161,6 +161,79 @@ public class LiveClaudeTests
         }
     }
 
+    /// <summary>
+    /// A product said right once and garbled once, two names that may be one person or two - the
+    /// context does not say, so both have to survive - and two rare terms spelled correctly, which
+    /// a model told to expect mishearings must not "fix".
+    /// </summary>
+    private const string MisheardDictation =
+        "Ich hab gestern mit Claude Code den Order Service umgebaut. Danach hat Klod Kode die Tests " +
+        "nicht mehr gefunden, weil die Ordner verschoben waren. Jannik meinte, das kennt er schon. " +
+        "Yannick hat dann vorgeschlagen dass wir die Pfade in der Projektdatei anpassen und das Paket " +
+        "mit Velopack baut, die Version kommt ja von MinVer.";
+
+    [Fact]
+    public async Task The_grammar_command_restores_what_speech_to_text_misheard()
+    {
+        Assert.SkipUnless(Environment.GetEnvironmentVariable(OptIn) is "1", $"{OptIn}=1 arms this test.");
+
+        var cancellation = TestContext.Current.CancellationToken;
+        var directory = Directory.CreateTempSubdirectory("mumblr-live-");
+        try
+        {
+            var file = Path.Combine(directory.FullName, "dictated.md");
+            await File.WriteAllTextAsync(file, MisheardDictation + Environment.NewLine, cancellation);
+
+            var grammar = MumblrConfig.ShippedPrompts.Single(command => command.Label == "Grammar");
+            var result = await new ClaudeCommandRunner(() => new ClaudeConfig()).RunAsync(grammar.Text, file, cancellation);
+            var edited = await File.ReadAllTextAsync(file, cancellation);
+
+            output.WriteLine("OUT: " + edited.Trim());
+            output.WriteLine("SUMMARY: " + result.Summary);
+
+            result.Success.ShouldBeTrue(result.Summary);
+            edited.ShouldNotContain("Klod");
+            edited.ShouldContain("Claude Code");
+            edited.ShouldContain("Velopack");
+            edited.ShouldContain("MinVer");
+            edited.ShouldContain("Jannik");
+            edited.ShouldContain("Yannick");
+        }
+        finally
+        {
+            directory.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task A_narrow_command_does_not_correct_the_rest_on_the_way()
+    {
+        Assert.SkipUnless(Environment.GetEnvironmentVariable(OptIn) is "1", $"{OptIn}=1 arms this test.");
+
+        var cancellation = TestContext.Current.CancellationToken;
+        var directory = Directory.CreateTempSubdirectory("mumblr-live-");
+        try
+        {
+            var file = Path.Combine(directory.FullName, "dictated.md");
+            await File.WriteAllTextAsync(file, MisheardDictation + Environment.NewLine, cancellation);
+
+            var result = await new ClaudeCommandRunner(() => new ClaudeConfig())
+                .RunAsync("Lösch den letzten Satz.", file, cancellation);
+            var edited = await File.ReadAllTextAsync(file, cancellation);
+
+            output.WriteLine("OUT: " + edited.Trim());
+            output.WriteLine("SUMMARY: " + result.Summary);
+
+            result.Success.ShouldBeTrue(result.Summary);
+            edited.ShouldNotContain("Projektdatei");
+            edited.ShouldContain("Klod Kode");
+        }
+        finally
+        {
+            directory.Delete(recursive: true);
+        }
+    }
+
     /// <summary>Weak on purpose: a German function word or an umlaut, and no English article.</summary>
     private static bool SoundsGerman(string text) =>
         Regex.IsMatch(text, @"\b(und|der|die|das|den|mit|im|ist)\b|[äöüß]", RegexOptions.IgnoreCase)

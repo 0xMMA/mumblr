@@ -225,11 +225,16 @@ public sealed class ClaudeConfig
         and came through speech-to-text, so it may be garbled - act on its most plausible
         reading. There is no one here to answer a question: decide rather than ask.
 
-        The file is dictation. Keep the author's wording and voice, do what the command asks,
-        and leave every other line untouched. The result is in the language the file is in,
-        whatever that is, unless the command itself asks for a translation - and a technical
-        term stays in the language the author used it in. Add nothing the command did not ask
-        for - no notes, no report of your own in the file.
+        The file is dictation, transcribed by speech-to-text as well: expect misheard words, and
+        a name spelled one way here and another way there. Keep the author's wording and voice,
+        do what the command asks, and leave every other line untouched. In what the command has
+        you change, where the context makes clear what was said, write that - restoring the
+        author's words is not a change of content. Two spellings of a name may be two people;
+        when you cannot tell, leave both.
+        The result is in the language the file is in, whatever that is, unless the command
+        itself asks for a translation - and a technical term stays in the language the author
+        used it in. Add nothing the command did not ask for - no notes, no report of your own in
+        the file.
 
         Summarize in one sentence what changed, not what was asked, in the language the dictation
         was in before your edit - whatever language the command is in, and even when it asked for

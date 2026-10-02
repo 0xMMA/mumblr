@@ -74,6 +74,11 @@ at a time; **Raw** puts the dictation back exactly as it was transcribed, whatev
 since, and is itself revertible. The raw file is read-only on disk between appends, so a command
 cannot edit it even though Claude has edit rights in the folder.
 
+Claude is told that the dictation is a speech-to-text transcript. Within the part a command
+changes, a misheard word is put back where the context makes clear what you said; two spellings of
+a name stay when they could be two people, and nothing outside that part is touched. That comes
+from the shipped header prompt (`claude.headerPrompt`) - an edited one keeps whatever you wrote.
+
 Commands you say word for word every day belong on a button instead. Every markdown file in
 `%APPDATA%\mumblr\prompts` becomes a button above the log; clicking one skips the microphone and
 the STT round trip entirely and takes the identical path from there - snapshot, `claude -p`,
@@ -81,7 +86,8 @@ reload, revert. Two ship:
 
 - **Grammar** fixes grammar, sentence structure and word order and changes nothing else: not the
   content, and not its language. German dictation with English terms comes back as German
-  dictation with English terms.
+  dictation with English terms. A word speech-to-text misheard is put back where the context makes
+  it clear - that restores what you said rather than changing it.
 - **Prompt** is the "get a prompt" in the tagline. It shapes the dictation into something you can
   hand to a coding agent - the ask first, then the context you gave, then the constraints - and
   ends with an *Open questions* section holding every gap and contradiction as a question. It

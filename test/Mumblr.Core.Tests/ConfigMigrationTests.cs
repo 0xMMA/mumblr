@@ -91,6 +91,24 @@ public sealed class ConfigMigrationTests : IDisposable
         File.ReadAllText(path).ShouldContain("language the file is in");
     }
 
+    /// <summary>
+    /// End to end, per shipped header: the pinned fingerprints below prove the hex matches the
+    /// text, this proves the hex is the one in the set - a typo there fails nothing else.
+    /// </summary>
+    [Theory]
+    [InlineData(ShippedDefaults.OldestHeaderPrompt)]
+    [InlineData(ShippedDefaults.Header015)]
+    [InlineData(ShippedDefaults.Header016)]
+    [InlineData(ShippedDefaults.HeaderUnreleased)]
+    [InlineData(ShippedDefaults.Header020)]
+    [InlineData(ShippedDefaults.Header031)]
+    public void Every_shipped_header_migrates_on_load(string shipped)
+    {
+        var prompt = System.Text.Json.JsonSerializer.Serialize(shipped);
+
+        Load("{\"claude\":{\"headerPrompt\":" + prompt + "}}").Claude.HeaderPrompt.ShouldBe(ClaudeConfig.DefaultHeaderPrompt);
+    }
+
     [Fact]
     public void An_edited_header_prompt_is_left_alone()
     {
@@ -153,6 +171,7 @@ public sealed class ConfigMigrationTests : IDisposable
     [InlineData("f86effd995a7d95dffc8645418d589bc0e1ff0e72add2990060d8fa65ff0548a", ShippedDefaults.Header016)]
     [InlineData("84a8df986008a764277ff623513586392dd0b0967753594b9d9b15f247bac245", ShippedDefaults.HeaderUnreleased)]
     [InlineData("bb4405600efa4e384e6ca0a75d26f6a3383a51ae26b74a6b5a171bf3cf59b878", ShippedDefaults.Header020)]
+    [InlineData("6180570108ed9c1bf31c20aa3c59631ac91f1f56727cdbdcbbddbc95cc2e3183", ShippedDefaults.Header031)]
     public void Every_legacy_header_fingerprint_matches_the_text_it_stands_for(string fingerprint, string text) =>
         ConfigMigration.Fingerprint(text).ShouldBe(fingerprint);
 

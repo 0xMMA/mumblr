@@ -27,6 +27,7 @@ public static class ConfigMigration
         "f86effd995a7d95dffc8645418d589bc0e1ff0e72add2990060d8fa65ff0548a", // 0.1.6 "The file holds dictated German"
         "84a8df986008a764277ff623513586392dd0b0967753594b9d9b15f247bac245", // unreleased, between 0.1.6 and 0.2.0: language rule without the translation clause
         "bb4405600efa4e384e6ca0a75d26f6a3383a51ae26b74a6b5a171bf3cf59b878", // 0.2.0-0.3.0 summary pinned to English
+        "6180570108ed9c1bf31c20aa3c59631ac91f1f56727cdbdcbbddbc95cc2e3183", // 0.3.1 file not yet called a transcript
     ];
 
     /// <summary>Prebuilt command lists that shipped before the current one.</summary>

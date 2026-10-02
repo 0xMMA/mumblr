@@ -58,4 +58,19 @@ public class ShippedPromptsTests
         header.ShouldContain("whatever language the command is in");
         header.ShouldNotContain("English sentence");
     }
+
+    [Fact]
+    public void The_header_says_the_file_is_a_transcript_and_mishearings_are_not_content()
+    {
+        // Without it, "change nothing about the content" in Grammar protects a misheard name as
+        // if the author had said it.
+        var header = string.Join(' ', ClaudeConfig.DefaultHeaderPrompt.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
+        header.ShouldContain("transcribed by speech-to-text");
+        header.ShouldContain("restoring the author's words is not a change of content");
+        // Scoped: a "delete the last sentence" does not get to correct the rest on the way.
+        header.ShouldContain("In what the command has you change");
+        // Merging two people into one is worse than a spelling left for the author to fix.
+        header.ShouldContain("Two spellings of a name may be two people");
+    }
 }
